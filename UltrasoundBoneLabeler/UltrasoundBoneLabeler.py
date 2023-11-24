@@ -117,8 +117,7 @@ class UltrasoundBoneLabelerParameterNode:
     inputVolume: vtkMRMLScalarVolumeNode
     imageThreshold: Annotated[float, WithinRange(-100, 500)] = 100
     invertThreshold: bool = False
-    thresholdedVolume: vtkMRMLScalarVolumeNode
-    invertedVolume: vtkMRMLScalarVolumeNode
+    outputVolume: vtkMRMLScalarVolumeNode
 
 
 #
@@ -260,11 +259,11 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             # Compute output
             self.logic.applyFilters(self.ui.inputSelector.currentNode(), self.ui.invertOutputCheckBox.checked)
 
-            # Compute inverted output (if needed)
-            if self.ui.invertedOutputSelector.currentNode():
-                # If additional output volume is selected then result with inverted threshold is written there
-                self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-                                   self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked, showResult=False)
+            # # Compute inverted output (if needed)
+            # if self.ui.invertedOutputSelector.currentNode():
+            #     # If additional output volume is selected then result with inverted threshold is written there
+            #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
+            #                        self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked, showResult=False)
 
 
 #
@@ -517,10 +516,9 @@ class UltrasoundBoneLabelerTest(ScriptedLoadableModuleTest):
         
         self.delayDisplay("Starting the test")
         
-        inputVolume = slicer.util.loadVolume('C:/Users/Antony/OneDrive/HES-SO/Semestre2/PA_UltraMotion/Data/day1/3DUS_L_probe1_conf1_ss1.dcm')
+        # inputVolume = slicer.util.loadVolume('C:/Users/Antony/OneDrive/HES-SO/Semestre2/PA_UltraMotion/Data/day1/3DUS_L_probe1_conf1_ss1.dcm')
         
-        logic = UltrasoundBoneLabelerLogic()
+        # logic = UltrasoundBoneLabelerLogic()
         
-        label3D = logic.applyFilters(inputVolume, False)
-        print(label3D[0, 0, :4])
-        logic.createSegmentation(inputVolume, label3D)
+        # label3D = logic.applyFilters(inputVolume, False)
+        # logic.createSegmentation(inputVolume, label3D)
