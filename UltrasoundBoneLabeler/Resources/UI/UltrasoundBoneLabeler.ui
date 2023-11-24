@@ -112,7 +112,7 @@
       <item row="3" column="0" colspan="5">
        <widget class="QPushButton" name="pushButton">
         <property name="text">
-         <string>Apply</string>
+         <string>Process</string>
         </property>
        </widget>
       </item>
@@ -126,7 +126,7 @@
       <item row="0" column="0">
        <widget class="QCheckBox" name="autoCropCheckBox">
         <property name="text">
-         <string>Auto-crop</string>
+         <string>Auto Cropping</string>
         </property>
        </widget>
       </item>
@@ -146,7 +146,20 @@
         </property>
         <layout class="QGridLayout" name="gridLayout_4">
          <item row="6" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="bestLineThresholdSlider"/>
+          <widget class="ctkSliderWidget" name="bestLineThresholdSlider">
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.100000000000000</double>
+           </property>
+          </widget>
          </item>
          <item row="5" column="0">
           <widget class="QLabel" name="label_8">
@@ -293,7 +306,7 @@
             <double>2.000000000000000</double>
            </property>
            <property name="pageStep">
-            <double>10.000000000000000</double>
+            <double>4.000000000000000</double>
            </property>
            <property name="minimum">
             <double>1.000000000000000</double>
@@ -310,7 +323,20 @@
           </widget>
          </item>
          <item row="7" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="bestLineExpDecaySlider"/>
+          <widget class="ctkSliderWidget" name="bestLineExpDecaySlider">
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.020000000000000</double>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>
@@ -322,7 +348,20 @@
         </property>
         <layout class="QGridLayout" name="gridLayout_8">
          <item row="0" column="1">
-          <widget class="ctkSliderWidget" name="SliderWidget"/>
+          <widget class="ctkSliderWidget" name="SliderWidget">
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+          </widget>
          </item>
          <item row="0" column="0">
           <widget class="QLabel" name="label_15">
@@ -384,6 +423,9 @@
            </property>
            <property name="singleStep">
             <double>2.000000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>4.000000000000000</double>
            </property>
            <property name="minimum">
             <double>1.000000000000000</double>

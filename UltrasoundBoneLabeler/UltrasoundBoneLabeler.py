@@ -15,7 +15,7 @@ from slicer.parameterNodeWrapper import (
     WithinRange,
 )
 
-from slicer import vtkMRMLScalarVolumeNode
+from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSegmentationNode
 
 from Logic import bone_probability_mapping, bone_surface_identification, files_manager
 
@@ -115,9 +115,20 @@ class UltrasoundBoneLabelerParameterNode:
     invertedVolume - The output volume that will contain the inverted thresholded volume.
     """
     inputVolume: vtkMRMLScalarVolumeNode
-    imageThreshold: Annotated[float, WithinRange(-100, 500)] = 100
-    invertThreshold: bool = False
-    outputVolume: vtkMRMLScalarVolumeNode
+    autoCrop: bool = False
+    resize: bool = False
+    dimensions: tuple[int, int] = (256, 256)
+    gaussianKernelSize: Annotated[int, WithinRange(1, 63)] = 25
+    binaryThreshold: Annotated[float, WithinRange(0, 1)] = 0.2
+    transducerMargin: Annotated[float, WithinRange(0, 1)] = 0.1
+    shadowSigma: Annotated[float, WithinRange(0, 200)] = 100
+    localPhaseSigma: Annotated[float, WithinRange(0, 3)] = 0.5
+    localPhaseWavelength: Annotated[float, WithinRange(0, 6)] = 2
+    bestLineThreshold: Annotated[float, WithinRange(0, 1)] = 0.1
+    bestLineExpDecay: Annotated[float, WithinRange(0, 1)] = 0.02
+    LoGKernelSize: Annotated[int, WithinRange(1, 31)] = 31
+    previewVolume: vtkMRMLScalarVolumeNode
+    outputSegmentation: vtkMRMLSegmentationNode
 
 
 #
