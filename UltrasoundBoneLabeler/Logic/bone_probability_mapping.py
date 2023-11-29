@@ -10,7 +10,6 @@ class BoneProbabilityMapping:
                  binary_threshold: float=0.2,
                  top_layer: float=0.1,
                  log_kernel_size: int=31,
-                 shadow_mu: float=0.0,
                  shadow_sigma: float=100.0,
                  shadow_n_sigmas: float=2.0,
                  quad_filter_sigma: float=0.5,
@@ -22,7 +21,6 @@ class BoneProbabilityMapping:
         self.binary_threshold = binary_threshold
         self.top_layer = top_layer
         self.log_kernel_size = log_kernel_size
-        self.shadow_mu = shadow_mu
         self.shadow_sigma = shadow_sigma
         self.shadow_n_sigmas = shadow_n_sigmas
         self.quad_filter_sigma = quad_filter_sigma
@@ -129,14 +127,13 @@ class BoneProbabilityMapping:
         return optimal_depth
 
 
-    def shadow_value(self, img: np.ndarray, mask: np.ndarray, mu: float=0.0, sigma: float=100.0, number_of_sigmas: float=2.0) -> np.ndarray:
+    def shadow_value(self, img: np.ndarray, mask: np.ndarray, sigma: float=100.0, number_of_sigmas: float=2.0) -> np.ndarray:
         """This function applies the shadow value to the image by computing a gaussian weighted accumulation of every pixel.
         The darker a region below a certain pixel is, the brightest the pixel will be, to help highlighting pixel situated above an acoustic shadow.
 
         Keyword arguments:
         img -- the image on which to apply the filter
         mask -- the binary mask on which the potential bone structure can be. Row where the mask is False are ignored in the computation.
-        mu -- the mean of the distribution of the gaussian
         sigma -- the variance of the distribution of the gaussian
         Return: the shadow value of the image
         """
@@ -147,7 +144,7 @@ class BoneProbabilityMapping:
         R, C = img.shape
         
         # Create the gaussian 2D array, with the same width as the image
-        G = np.tile(self.gaussian(np.arange(R), mu, sigma), (C, 1)).T
+        G = np.tile(self.gaussian(np.arange(R), 0, sigma), (C, 1)).T
         
         # Get the optimal depth to compute the gaussian
         optimal_depth = round(number_of_sigmas*sigma)
@@ -368,7 +365,7 @@ class BoneProbabilityMapping:
         mask = self.apply_mask(img=gaussian, threshold=self.binary_threshold, top_layer=self.top_layer)
         laplacian = self.laplacian_of_gaussian(img=gaussian, kernel_size=self.log_kernel_size)
         gaussian = self.min_max_normalization(gaussian)
-        shadow_image = self.shadow_value(img=gaussian, mask=mask, mu=self.shadow_mu, sigma=self.shadow_sigma, number_of_sigmas=self.shadow_n_sigmas)
+        shadow_image = self.shadow_value(img=gaussian, mask=mask, sigma=self.shadow_sigma, number_of_sigmas=self.shadow_n_sigmas)
         gabor_even, gabor_odd_1, gabor_odd_2 = self.spherical_quadratude_filters(img=gaussian, sigma=self.quad_filter_sigma, wavelength=self.quad_filter_wavelength)
         mono_even, mono_odd = self.monogenic_signal(img=gaussian, gabor_even=gabor_even, gabor_odd_1=gabor_odd_1, gabor_odd_2=gabor_odd_2)
         local_energy = self.local_energy(mono_even=mono_even, mono_odd=mono_odd)

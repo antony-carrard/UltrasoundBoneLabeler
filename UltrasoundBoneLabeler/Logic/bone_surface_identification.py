@@ -6,10 +6,14 @@ class BoneSurfaceIdentification:
     def __init__(self,
                  str_elem_size: tuple=(15, 25),
                  threshold: float=0.1,
+                 cost_factor: float=0.1,
+                 thickness: int=3,
                  color: tuple=(255, 0, 0)) -> None:
         
         self.str_elem_size = str_elem_size
         self.threshold = threshold
+        self.cost_factor = cost_factor
+        self.thickness = thickness
         self.color = color
         
                  
@@ -74,14 +78,14 @@ class BoneSurfaceIdentification:
                 max_cnt = i
         return max_cnt
 
-    def trace_best_line(self, col_start, col_stop, starting_point, best_line, img, threshold_int, exp_decay):
+    def trace_best_line(self, col_start, col_stop, starting_point, best_line, img, threshold_int, cost_factor):
         rows = img.shape[0]
         inc = np.sign(col_stop - col_start)
         prev_max = starting_point[0]
         for c in range(col_start, col_stop, inc):
             # Compute the cost of the column
-            index_cost = np.exp(-np.abs(np.arange(-prev_max, rows-prev_max)) * exp_decay)
-            column_cost = index_cost * img[:, c]
+            index_cost = np.arange(-prev_max, rows-prev_max)**2 * cost_factor
+            column_cost = img[:, c] - index_cost
             column_cost_thresholded = np.clip(column_cost - threshold_int, 0, 255)
             best_row = column_cost_thresholded.argmax()
             if best_row == 0:
@@ -90,7 +94,7 @@ class BoneSurfaceIdentification:
             prev_max = best_row
 
 
-    def dynamic_selection(self, img, weighted_contour, threshold=0.1, exp_decay=0.05):
+    def dynamic_selection(self, img, weighted_contour, threshold=0.1, cost_factor=0.1):
         
         best_line = np.zeros(img.shape, np.uint8)
         threshold_int = round(threshold*255)
@@ -101,12 +105,17 @@ class BoneSurfaceIdentification:
         best_line[brightest_point] = 255
         
         # Trace to the right side
-        self.trace_best_line(brightest_point[1]+1, cols, brightest_point, best_line, img, threshold_int, exp_decay)
+        self.trace_best_line(brightest_point[1]+1, cols, brightest_point, best_line, img, threshold_int, cost_factor)
         
         # Trace to the left side
-        self.trace_best_line(brightest_point[1]-1, 0, brightest_point, best_line, img, threshold_int, exp_decay)
+        self.trace_best_line(brightest_point[1]-1, 0, brightest_point, best_line, img, threshold_int, cost_factor)
         
         return best_line
+    
+    def thicken_line(self, img, thickness):
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (thickness, thickness))
+        img = cv2.dilate(img, kernel, iterations=1)
+        return img
 
 
     def label_image(self, img: np.ndarray, cnts: tuple) -> np.ndarray:
@@ -128,9 +137,10 @@ class BoneSurfaceIdentification:
             cv2.drawContours(out, cnts, cnt_id, 255, cv2.FILLED)
             out = out.astype(np.float64)
             weighted_contour = out * img
-            best_line = self.dynamic_selection(img, weighted_contour)
+            best_line = self.dynamic_selection(img, weighted_contour, self.threshold, self.cost_factor)
+            best_line_thickened = self.thicken_line(best_line, self.thickness)
             
-        return best_line
+        return best_line_thickened
 
 
     def draw_on_image(self, img: np.ndarray, label: np.ndarray, color: tuple=(255, 0, 0)) -> np.ndarray:

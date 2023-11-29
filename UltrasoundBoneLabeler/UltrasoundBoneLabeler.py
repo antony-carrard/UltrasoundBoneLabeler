@@ -13,9 +13,10 @@ from slicer.util import VTKObservationMixin
 from slicer.parameterNodeWrapper import (
     parameterNodeWrapper,
     WithinRange,
+    Minimum,
 )
 
-from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSegmentationNode
+from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSegmentationNode, vtkMRMLVectorVolumeNode
 
 from Logic import bone_probability_mapping, bone_surface_identification, files_manager
 
@@ -114,19 +115,24 @@ class UltrasoundBoneLabelerParameterNode:
     thresholdedVolume - The output volume that will contain the thresholded volume.
     invertedVolume - The output volume that will contain the inverted thresholded volume.
     """
-    inputVolume: vtkMRMLScalarVolumeNode
-    autoCrop: bool = False
+    inputVector: vtkMRMLVectorVolumeNode
+    autoCropping: bool = False
     resize: bool = False
-    dimensions: tuple[int, int] = (256, 256)
-    gaussianKernelSize: Annotated[int, WithinRange(1, 63)] = 25
+    height: str = "256"
+    width: str = "256"
+    preprocessedVolume: vtkMRMLScalarVolumeNode
+    inputVolume: vtkMRMLScalarVolumeNode
+    gaussianKernelSize: Annotated[float, WithinRange(1, 63)] = 25
     binaryThreshold: Annotated[float, WithinRange(0, 1)] = 0.2
     transducerMargin: Annotated[float, WithinRange(0, 1)] = 0.1
     shadowSigma: Annotated[float, WithinRange(0, 200)] = 100
     localPhaseSigma: Annotated[float, WithinRange(0, 3)] = 0.5
     localPhaseWavelength: Annotated[float, WithinRange(0, 6)] = 2
     bestLineThreshold: Annotated[float, WithinRange(0, 1)] = 0.1
-    bestLineExpDecay: Annotated[float, WithinRange(0, 1)] = 0.02
-    LoGKernelSize: Annotated[int, WithinRange(1, 31)] = 31
+    bestLineCostFactor: Annotated[float, WithinRange(0, 1)] = 0.1
+    LoGKernelSize: Annotated[float, WithinRange(1, 31)] = 31
+    shadowNbSigmas: Annotated[float, WithinRange(0, 4)] = 2
+    segmentationThickness: Annotated[float, WithinRange(1, 10)] = 3
     previewVolume: vtkMRMLScalarVolumeNode
     outputSegmentation: vtkMRMLSegmentationNode
 
@@ -179,6 +185,9 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
 
         # Buttons
         self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
+        self.ui.preprocessButton.connect('clicked(bool)', self.onPreprocessButton)
+        self.ui.currentSliceButton.connect('clicked(bool)', self.onCurrentSliceButton)
+        self.ui.allVolumeButton.connect('clicked(bool)', self.onAllVolumeButton)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -205,6 +214,8 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
             self._parameterNodeGuiTag = None
             self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanPreprocess)
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._volumeLoaded)
 
     def onSceneStartClose(self, caller, event) -> None:
         """
@@ -235,6 +246,14 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
             if firstVolumeNode:
                 self._parameterNode.inputVolume = firstVolumeNode
+                
+        if not self._parameterNode.inputVector:
+            firstVectorNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLVectorVolumeNode")
+            if firstVectorNode:
+                self._parameterNode.inputVector = firstVectorNode
+                
+        if self._parameterNode.inputVolume:
+            self.onAllVolumeButton()
 
     def setParameterNode(self, inputParameterNode: Optional[UltrasoundBoneLabelerParameterNode]) -> None:
         """
@@ -245,21 +264,51 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         if self._parameterNode:
             self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
             self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanPreprocess)
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._volumeLoaded)
         self._parameterNode = inputParameterNode
         if self._parameterNode:
             # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
             # ui element that needs connection.
             self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanPreprocess)
+            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._volumeLoaded)
             self._checkCanApply()
+            self._checkCanPreprocess()
+            self._volumeLoaded()
 
     def _checkCanApply(self, caller=None, event=None) -> None:
-        if self._parameterNode and self._parameterNode.inputVolume and self._parameterNode.thresholdedVolume:
+        if self._parameterNode and self._parameterNode.inputVolume and self._parameterNode.previewVolume:
             self.ui.applyButton.toolTip = "Compute output volume"
             self.ui.applyButton.enabled = True
         else:
             self.ui.applyButton.toolTip = "Select input and output volume nodes"
             self.ui.applyButton.enabled = False
+            
+    def _checkCanPreprocess(self, caller=None, event=None) -> None:
+        if self._parameterNode and self._parameterNode.inputVector and self._parameterNode.preprocessedVolume:
+            self.ui.preprocessButton.toolTip = "Preprocess input volume"
+            self.ui.preprocessButton.enabled = True
+        else:
+            self.ui.preprocessButton.toolTip = "Select input and output options"
+            self.ui.preprocessButton.enabled = False
+            
+    def _volumeLoaded(self, caller=None, event=None) -> None:
+        if self._parameterNode and self._parameterNode.inputVector:
+            
+            # Get the number of images in the volume
+            array3D = slicer.util.arrayFromVolume(self._parameterNode.inputVector)
+            numberOfSlices = array3D.shape[0]
+            self.ui.rangeSlices.maximum = numberOfSlices
+            # self.ui.rangeSlices.maximumValue = numberOfSlices
+            
+            # Activate the slices buttons
+            self.ui.currentSliceButton.enabled = True
+            self.ui.allVolumeButton.enabled = True
+        else:
+            self.ui.currentSliceButton.enabled = False
+            self.ui.allVolumeButton.enabled = False
 
     def onApplyButton(self) -> None:
         """
@@ -268,14 +317,60 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
 
             # Compute output
-            self.logic.applyFilters(self.ui.inputSelector.currentNode(), self.ui.invertOutputCheckBox.checked)
+            self.logic.apply(self._parameterNode.inputVolume,
+                             int(self._parameterNode.gaussianKernelSize),
+                             self._parameterNode.binaryThreshold,
+                             self._parameterNode.transducerMargin,
+                             int(self._parameterNode.LoGKernelSize),
+                             self._parameterNode.shadowSigma,
+                             self._parameterNode.shadowNbSigmas,
+                             self._parameterNode.localPhaseSigma,
+                             self._parameterNode.localPhaseWavelength,
+                             self._parameterNode.bestLineThreshold,
+                             self._parameterNode.bestLineCostFactor,
+                             int(self._parameterNode.segmentationThickness),
+                             int(self.ui.rangeSlices.minimumValue),
+                             int(self.ui.rangeSlices.maximumValue),
+                             self._parameterNode.previewVolume,
+                             self._parameterNode.outputSegmentation)
+            
+    def onPreprocessButton(self) -> None:
+        """
+        Run processing when user clicks "Preprocess" button.
+        """
+        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
 
-            # # Compute inverted output (if needed)
-            # if self.ui.invertedOutputSelector.currentNode():
-            #     # If additional output volume is selected then result with inverted threshold is written there
-            #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-            #                        self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked, showResult=False)
-
+            # Compute output
+            self.logic.preprocess(self._parameterNode.inputVector,
+                                  self._parameterNode.preprocessedVolume,
+                                  self._parameterNode.autoCropping,
+                                  self._parameterNode.resize,
+                                  int(self._parameterNode.height),
+                                  int(self._parameterNode.width))
+            
+            # Refresh the input volume selector
+            self._parameterNode.inputVolume = self._parameterNode.preprocessedVolume
+            
+    def onCurrentSliceButton(self) -> None:
+        """
+        Run processing when user clicks "Preprocess" button.
+        """
+        # self.ui.rangeSlices.minimum = 
+        # self.ui.rangeSlices.maximum = 
+        layoutManager = slicer.app.layoutManager()
+        red = layoutManager.sliceWidget("Red")
+        redLogic = red.sliceLogic()
+        redCurrentSlice = redLogic.GetSliceOffset()
+        self.ui.rangeSlices.minimumValue = redCurrentSlice
+        self.ui.rangeSlices.maximumValue = redCurrentSlice
+        
+        
+    def onAllVolumeButton(self) -> None:
+        """
+        Run processing when user clicks "Preprocess" button.
+        """
+        self.ui.rangeSlices.minimumValue = self.ui.rangeSlices.minimum
+        self.ui.rangeSlices.maximumValue = self.ui.rangeSlices.maximum
 
 #
 # UltrasoundBoneLabelerLogic
@@ -299,118 +394,51 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
 
     def getParameterNode(self):
         return UltrasoundBoneLabelerParameterNode(super().getParameterNode())
-
-    def process(self,
-                inputVolume: vtkMRMLScalarVolumeNode,
-                outputVolume: vtkMRMLScalarVolumeNode,
-                imageThreshold: float,
-                invert: bool = False,
-                showResult: bool = True) -> None:
-        """
-        Run the processing algorithm.
-        Can be used without GUI widget.
-        :param inputVolume: volume to be thresholded
-        :param outputVolume: thresholding result
-        :param imageThreshold: values above/below this threshold will be set to 0
-        :param invert: if True then values above the threshold will be set to 0, otherwise values below are set to 0
-        :param showResult: show output volume in slice viewers
-        """
-
-        if not inputVolume or not outputVolume:
-            raise ValueError("Input or output volume is invalid")
-
-        import time
-        startTime = time.time()
-        logging.info('Processing started')
-
-        # Compute the thresholded output volume using the "Threshold Scalar Volume" CLI module
-        cliParams = {
-            'InputVolume': inputVolume.GetID(),
-            'OutputVolume': outputVolume.GetID(),
-            'ThresholdValue': imageThreshold,
-            'ThresholdType': 'Above' if invert else 'Below'
-        }
-        cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True, update_display=showResult)
-        # We don't need the CLI module node anymore, remove it to not clutter the scene with it
-        slicer.mrmlScene.RemoveNode(cliNode)
-
-        stopTime = time.time()
-        logging.info(f'Processing completed in {stopTime-startTime:.2f} seconds')
         
-    def applyOnVolume(self, inputVolume: vtkMRMLScalarVolumeNode, functionToApply) -> None:
-        """
-        Run the algorithm on every image of the 3D array.
-        :param inputVolume: 3D volume on which to apply the algorithm
-        :param functionToApply: the function to apply on every 2D image
-        """
-        # Get the 3D numpy array from the slicer volume
-        array3D = slicer.util.arrayFromVolume(inputVolume)
+    def createSegmentation(self,
+                           inputVolume: vtkMRMLScalarVolumeNode,
+                           outputSegmentation: vtkMRMLSegmentationNode,
+                           label3D: np.ndarray,
+                           segmentName: str="Bone surface",
+                           segmentColor: tuple[float, float, float]=(1, 0, 0)) -> None:
         
-        # Apply the algorithm on every image
-        for i, array2D in enumerate(array3D[:5]):
-            array3D[i] = functionToApply(array2D)
+        # First, check if the current segment exists
+        segment = outputSegmentation.GetSegmentation().GetSegment(segmentName)
+        
+        # If not, create it
+        if not segment:
+            outputSegmentation.GetSegmentation().AddEmptySegment(segmentName)
+            segment = outputSegmentation.GetSegmentation().GetSegment(segmentName)
             
-        # Update the volume node with the processed array
-        slicer.util.updateVolumeFromArray(inputVolume, array3D)
+        # Color the segment
+        segment.SetColor(segmentColor)
+        
+        # Apply the 3D label to the segment
+        slicer.util.updateSegmentBinaryLabelmapFromArray(narray=label3D,
+                                                         segmentationNode=outputSegmentation,
+                                                         segmentId=segmentName,
+                                                         referenceVolumeNode=inputVolume)
         
         
         
-    def showSegmentation(self, inputVolume: vtkMRMLScalarVolumeNode) -> None:
-        """
-        Run the algorithm on every image of the 3D array.
-        :param inputVolume: 3D volume on which to apply the algorithm
-        :param functionToApply: the function to apply on every 2D image
-        """
-        boneProbMap = bone_probability_mapping.BoneProbabilityMapping()
-        boneSurfId = bone_surface_identification.BoneSurfaceIdentification()
-        fm = files_manager.FileManager()
-        
-        # Get the 3D numpy array from the slicer volume
-        array3D = slicer.util.arrayFromVolume(inputVolume)
-        
-        # Resize and crop the volume
-        array3D = fm.auto_crop(array3D)
-        array3D = fm.resize_images(array3D, (256, 256))
-        
-        print(array3D.shape)
-        
-        label3D = np.zeros(array3D.shape, dtype=np.uint8)
-        arrayColor = np.stack((array3D, array3D, array3D), axis = -1)
-        
-        # Apply the algorithm on every image
-        start, end = 0, len(array3D)
-        thickness = 5
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (thickness, thickness))
-        for i, array2D in enumerate(array3D[start:end]):
-            i = start+i
-            label3D[i] = boneProbMap.apply_all_filters(array3D[i])
-            label3D[i] = boneSurfId.identify_bone_surface(label3D[i])
-            label3D[i] = cv2.dilate(label3D[i], kernel, iterations=1)
-            # arrayColor[i] = boneSurfId.draw_on_image(array3D[i], label3D[i], (0, 0, 255))
-            
-        # Update the volume node with the processed array
-        slicer.util.updateVolumeFromArray(inputVolume, array3D)
-        
-        # Return the binary labeled array
-        return label3D.astype(bool).astype(int)
-        
-    def createSegmentation(self, inputVolume: vtkMRMLScalarVolumeNode, label3D: np.ndarray) -> None:
-        
-        # Create a new segmentation
-        # segmentationNode = slicer.util.getNode("Segmentation")
-        # segmentId = "Segment_1"
-        segmentationNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
-        # segmentationNode.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
-        
-        # Create a segment
-        segmentId = segmentationNode.GetSegmentation().AddEmptySegment("Segment")
-        # print(label3D[0, 0, :4])
-        
-        slicer.util.updateSegmentBinaryLabelmapFromArray(narray=label3D, segmentationNode=segmentationNode, segmentId=segmentId, referenceVolumeNode=inputVolume)
-        
-    def applyFilters(self,
+    def apply(self,
                 inputVolume: vtkMRMLScalarVolumeNode,
-                showResult: bool = True) -> None:
+                gaussianKernelSize: int,
+                binaryThreshold: float,
+                transducerMargin: float,
+                LoGKernelSize: int,
+                shadowSigma: float,
+                shadowNbSigmas: float,
+                localPhaseSigma: float,
+                localPhaseWavelength: float,
+                bestLineThreshold: float,
+                bestLineCostFactor: float,
+                segmentationThickness: int,
+                startingSlice: int,
+                endingSlice: int,
+                previewVolume: vtkMRMLScalarVolumeNode,
+                outputSegmentation: vtkMRMLSegmentationNode,
+                segmentName: str="Bone surface") -> None:
         """
         Run the processing algorithm.
         Can be used without GUI widget.
@@ -427,31 +455,86 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         startTime = time.time()
         logging.info('Processing started')
 
-        boneProbMap = bone_probability_mapping.BoneProbabilityMapping()
-        boneSurfId = bone_surface_identification.BoneSurfaceIdentification()
-        # Compute the thresholded output volume using the "Threshold Scalar Volume" CLI module
-        # cliParams = {
-        #     'InputVolume': inputVolume.GetID(),
-        #     'functionToApply': boneProbMap.apply_all_filters
-        # }
-        # cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True, update_display=showResult)
-        # cliNode = slicer.cli.run(self.applyOnVolume, None, cliParams, wait_for_completion=True, update_display=showResult)
-        # Convert the input volume to grayscale
-        array3D = slicer.util.arrayFromVolume(inputVolume)[:, :, :, 0]
-        slicer.util.updateVolumeFromArray(inputVolume, array3D)
+        # Get the 3D numpy array from the slicer volume
+        array3D = slicer.util.arrayFromVolume(inputVolume)[:, ::-1, ::-1]
         
-        # self.applyOnVolume(inputVolume, boneProbMap.apply_all_filters)
-        # self.applyOnVolume(inputVolume, boneSurfId.identify_bone_surface)
-        label3D = self.showSegmentation(inputVolume)
-        # We don't need the CLI module node anymore, remove it to not clutter the scene with it
-        # slicer.mrmlScene.RemoveNode(cliNode)
+        # Declare the algorithm classes
+        boneProbMap = bone_probability_mapping.BoneProbabilityMapping(gaussianKernelSize,
+                                                                      binaryThreshold,
+                                                                      transducerMargin,
+                                                                      LoGKernelSize,
+                                                                      shadowSigma,
+                                                                      shadowNbSigmas,
+                                                                      localPhaseSigma,
+                                                                      localPhaseWavelength)
+        
+        boneSurfId = bone_surface_identification.BoneSurfaceIdentification((15, 25),
+                                                                           bestLineThreshold,
+                                                                           bestLineCostFactor,
+                                                                           segmentationThickness)
+        
+        # If a segmentation already exists, start from it
+        segment = outputSegmentation.GetSegmentation().GetSegment(segmentName)
+        if segment:
+            label3D = slicer.util.arrayFromSegmentBinaryLabelmap(outputSegmentation, segmentName, inputVolume).astype(np.uint8)
+            
+        # Otherwise create a new one
+        else:
+            label3D = np.zeros(array3D.shape, dtype=np.uint8)
+        
+        # Apply the algorithm on every image
+        for i, array2D in enumerate(array3D[startingSlice:endingSlice]):
+            i = startingSlice+i
+            label3D[i] = boneProbMap.apply_all_filters(array3D[i])
+            label3D[i] = boneSurfId.identify_bone_surface(label3D[i])
+            # arrayColor[i] = boneSurfId.draw_on_image(array3D[i], label3D[i], (0, 0, 255))
+            
+        # Update the volume node with the processed array
+        slicer.util.updateVolumeFromArray(previewVolume, label3D[:, ::-1, ::-1])
+        
+        # Show the preview volume in slicer
+        slicer.util.setSliceViewerLayers(background=inputVolume)
+        
+        # Actualize the segmentation
+        self.createSegmentation(inputVolume, outputSegmentation, label3D[:, ::-1, ::-1], segmentName)
+        
+        # Show the segmentation in 3D
+        outputSegmentation.CreateClosedSurfaceRepresentation()
 
         stopTime = time.time()
         logging.info(f'Processing completed in {stopTime-startTime:.2f} seconds')
         
         # Return the binary labeled array
-        return label3D.astype(bool).astype(int)
+        # return label3D.astype(bool).astype(int)
 
+    def preprocess(self,
+                   inputVector: vtkMRMLVectorVolumeNode,
+                   preprocessedVolume: vtkMRMLScalarVolumeNode,
+                   autoCropping: bool = False,
+                   resize: bool = False,
+                   height: int = 256,
+                   width: int = 256) -> None:
+        
+        fm = files_manager.FileManager()
+        
+        # Get the 4D numpy array from the slicer vector
+        array4D = slicer.util.arrayFromVolume(inputVector)
+        
+        # Get the gray part of the vector
+        array3D = array4D[:, :, :, 0]
+        
+        # Resize and crop the volume
+        if autoCropping:
+            array3D = fm.auto_crop(array3D)
+        if resize:
+            array3D = fm.resize_images(array3D, (height, width))
+        
+        # Update the volume with the resized array
+        slicer.util.updateVolumeFromArray(preprocessedVolume, array3D[:, ::-1, ::-1])
+        slicer.util.setSliceViewerLayers(preprocessedVolume)
+        
+        # Reset the field of view
+        slicer.util.resetSliceViews()
 
 #
 # UltrasoundBoneLabelerTest
