@@ -419,8 +419,6 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                                                          segmentId=segmentName,
                                                          referenceVolumeNode=inputVolume)
         
-        
-        
     def apply(self,
                 inputVolume: vtkMRMLScalarVolumeNode,
                 gaussianKernelSize: int,
@@ -459,7 +457,8 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         array3D = slicer.util.arrayFromVolume(inputVolume)[:, ::-1, ::-1]
         
         # Declare the algorithm classes
-        boneProbMap = bone_probability_mapping.BoneProbabilityMapping(gaussianKernelSize,
+        boneProbMap = bone_probability_mapping.BoneProbabilityMapping(array3D[0].shape,
+                                                                      gaussianKernelSize,
                                                                       binaryThreshold,
                                                                       transducerMargin,
                                                                       LoGKernelSize,
