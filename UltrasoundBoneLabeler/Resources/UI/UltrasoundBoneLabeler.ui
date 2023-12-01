@@ -416,7 +416,7 @@
             <double>1.000000000000000</double>
            </property>
            <property name="value">
-            <double>0.100000000000000</double>
+            <double>0.150000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
             <string>bestLineThreshold</string>
@@ -560,6 +560,13 @@
           </widget>
          </item>
         </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="defaultParametersButton">
+        <property name="text">
+         <string>Default parameters</string>
+        </property>
        </widget>
       </item>
       <item>

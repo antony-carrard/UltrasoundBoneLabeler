@@ -128,7 +128,7 @@ class UltrasoundBoneLabelerParameterNode:
     shadowSigma: Annotated[float, WithinRange(1, 200)] = 100
     localPhaseSigma: Annotated[float, WithinRange(0.1, 3)] = 0.5
     localPhaseWavelength: Annotated[float, WithinRange(1, 6)] = 2
-    bestLineThreshold: Annotated[float, WithinRange(0, 1)] = 0.1
+    bestLineThreshold: Annotated[float, WithinRange(0, 1)] = 0.15
     bestLineSigma: Annotated[float, WithinRange(1, 40)] = 10
     LoGKernelSize: Annotated[float, WithinRange(1, 31)] = 31
     shadowNbSigmas: Annotated[float, WithinRange(1, 4)] = 2
@@ -354,6 +354,15 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             
             # Refresh the input volume selector
             self._parameterNode.inputVolume = self._parameterNode.preprocessedVolume
+            
+    def onDefaultParametersButton(self) -> None:
+        """
+        Run processing when user clicks "DefaultParameters" button.
+        """
+        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+            
+            pass # TODO put the default parameters values
+        
             
     def onCurrentSliceButton(self) -> None:
         """
