@@ -146,7 +146,7 @@ class BoneProbabilityMapping:
         Return: the shadow value of the image
         """
         # Create the shadow image
-        shadow_img = np.zeros(img.shape)
+        shadow_img = np.ones(img.shape)
         
         # Get the dimensions of the image
         R, C = self.img_dimensions
@@ -361,13 +361,13 @@ class BoneProbabilityMapping:
         return ibs
 
 
-    def prob_map(self, img: np.ndarray, laplacian: np.ndarray, mask: np.ndarray, shadow_image: np.ndarray, local_energy: np.ndarray, local_phase: np.ndarray, phase_symmetry: np.ndarray, ibs: np.ndarray) -> np.ndarray:
+    def prob_map(self, img: np.ndarray, mask: np.ndarray, laplacian: np.ndarray, shadow_image: np.ndarray, local_energy: np.ndarray, local_phase: np.ndarray, phase_symmetry: np.ndarray, ibs: np.ndarray) -> np.ndarray:
         """ Compute the bone probability mapping by multiplying all the filtered images.
         
         Keyword arguments:
         img -- the original image
-        laplacian -- the laplacian of the Gaussian of the image (LoG)
         mask -- the binary mask of the image
+        laplacian -- the laplacian of the Gaussian of the image (LoG)
         shadow_image -- the shadow image
         local_energy -- the local energy of the image
         local_phase -- the local phase of the image
@@ -376,7 +376,7 @@ class BoneProbabilityMapping:
 
         Return: the bone probability mapping
         """
-        prob_map = img * laplacian * mask * shadow_image * local_energy * local_phase * phase_symmetry * ibs
+        prob_map = img * mask * laplacian * shadow_image * local_energy * local_phase * phase_symmetry * ibs
         
         # Normalize the image to uint8
         prob_map = cv2.normalize(prob_map, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
@@ -391,28 +391,37 @@ class BoneProbabilityMapping:
         img -- the original image
         Return: the bone probability mapping
         """
-        self.gaussian_img = self.gaussian_filter(img=img, kernel_size=self.gaussian_kernel_size)
-        self.mask = self.apply_mask(img=self.gaussian_img, threshold=self.binary_threshold, top_layer=self.top_layer)
-        self.laplacian = self.laplacian_of_gaussian(img=self.gaussian_img, kernel_size=self.log_kernel_size)
-        self.gaussian_img = self.min_max_normalization(self.gaussian_img)
-        self.shadow_image = self.shadow_value(img=self.gaussian_img, mask=self.mask, sigma=self.shadow_sigma, number_of_sigmas=self.shadow_n_sigmas)
-        self.mono_even, self.mono_odd = self.monogenic_signal(img=self.gaussian_img, gabor_even=self.gabor_even, gabor_odd_1=self.gabor_odd_1, gabor_odd_2=self.gabor_odd_2)
-        self.local_energy_img = self.local_energy(mono_even=self.mono_even, mono_odd=self.mono_odd)
-        self.local_phase_img  = self.local_phase(mono_even=self.mono_even, mono_odd=self.mono_odd)
-        self.phase_symmetry_img  = self.phase_symmetry(mono_even=self.mono_even,
-                                                  mono_odd=self.mono_odd,
-                                                  local_energy=self.local_energy_img,
+        gaussian_img = self.gaussian_filter(img=img, kernel_size=self.gaussian_kernel_size)
+        mask = self.apply_mask(img=gaussian_img, threshold=self.binary_threshold, top_layer=self.top_layer)
+        laplacian = self.laplacian_of_gaussian(img=gaussian_img, kernel_size=self.log_kernel_size)
+        gaussian_img = self.min_max_normalization(gaussian_img)
+        shadow_image = self.shadow_value(img=gaussian_img, mask=mask, sigma=self.shadow_sigma, number_of_sigmas=self.shadow_n_sigmas)
+        mono_even, mono_odd = self.monogenic_signal(img=gaussian_img, gabor_even=self.gabor_even, gabor_odd_1=self.gabor_odd_1, gabor_odd_2=self.gabor_odd_2)
+        local_energy_img = self.local_energy(mono_even=mono_even, mono_odd=mono_odd)
+        local_phase_img  = self.local_phase(mono_even=mono_even, mono_odd=mono_odd)
+        phase_symmetry_img  = self.phase_symmetry(mono_even=mono_even,
+                                                  mono_odd=mono_odd,
+                                                  local_energy=local_energy_img,
                                                   threshold=self.phase_symmetry_threshold,
                                                   epsilon=self.phase_symmetry_epsilon)
-        self.ibs = self.IBS(img=self.gaussian_img)
-        self.prob_map_img = self.prob_map(img=self.gaussian_img,
-                                      laplacian=self.laplacian,
-                                      mask=self.mask,
-                                      shadow_image=self.shadow_image,
-                                      local_energy=self.local_energy_img,
-                                      local_phase=self.local_phase_img ,
-                                      phase_symmetry=self.phase_symmetry_img ,
-                                      ibs=self.ibs)
+        ibs = self.IBS(img=gaussian_img)
+        prob_map_img = self.prob_map(img=gaussian_img,
+                                      mask=mask,
+                                      laplacian=laplacian,
+                                      shadow_image=shadow_image,
+                                      local_energy=local_energy_img,
+                                      local_phase=local_phase_img,
+                                      phase_symmetry=phase_symmetry_img,
+                                      ibs=ibs)
         
-        return self.prob_map_img
+        gaussian_img = cv2.normalize(gaussian_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        mask = cv2.normalize(mask.astype(np.uint8), None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        laplacian = cv2.normalize(laplacian, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        shadow_image = cv2.normalize(shadow_image, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        local_energy_img = cv2.normalize(local_energy_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        local_phase_img = cv2.normalize(local_phase_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        phase_symmetry_img = cv2.normalize(phase_symmetry_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        ibs = cv2.normalize(ibs, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        
+        return gaussian_img, mask, laplacian, shadow_image, local_energy_img, local_phase_img, phase_symmetry_img, ibs, prob_map_img
     

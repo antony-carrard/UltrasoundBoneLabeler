@@ -125,14 +125,15 @@ class UltrasoundBoneLabelerParameterNode:
     gaussianKernelSize: Annotated[float, WithinRange(1, 63)] = 25
     binaryThreshold: Annotated[float, WithinRange(0, 1)] = 0.2
     transducerMargin: Annotated[float, WithinRange(0, 1)] = 0.1
-    shadowSigma: Annotated[float, WithinRange(0, 200)] = 100
-    localPhaseSigma: Annotated[float, WithinRange(0, 3)] = 0.5
-    localPhaseWavelength: Annotated[float, WithinRange(0, 6)] = 2
+    shadowSigma: Annotated[float, WithinRange(1, 200)] = 100
+    localPhaseSigma: Annotated[float, WithinRange(0.1, 3)] = 0.5
+    localPhaseWavelength: Annotated[float, WithinRange(1, 6)] = 2
     bestLineThreshold: Annotated[float, WithinRange(0, 1)] = 0.1
-    bestLineCostFactor: Annotated[float, WithinRange(0, 1)] = 0.1
+    bestLineSigma: Annotated[float, WithinRange(1, 40)] = 10
     LoGKernelSize: Annotated[float, WithinRange(1, 31)] = 31
-    shadowNbSigmas: Annotated[float, WithinRange(0, 4)] = 2
-    segmentationThickness: Annotated[float, WithinRange(1, 10)] = 3
+    shadowNbSigmas: Annotated[float, WithinRange(1, 4)] = 2
+    segmentationThickness: Annotated[float, WithinRange(1, 10)] = 4
+    minimumBoneWidth: Annotated[float, WithinRange(0, 1)] = 0.4
     previewVolume: vtkMRMLScalarVolumeNode
     outputSegmentation: vtkMRMLSegmentationNode
 
@@ -188,6 +189,7 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.ui.preprocessButton.connect('clicked(bool)', self.onPreprocessButton)
         self.ui.currentSliceButton.connect('clicked(bool)', self.onCurrentSliceButton)
         self.ui.allVolumeButton.connect('clicked(bool)', self.onAllVolumeButton)
+        self.ui.previewButton.connect('clicked(bool)', self.onPreviewButton)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -327,12 +329,14 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                              self._parameterNode.localPhaseSigma,
                              self._parameterNode.localPhaseWavelength,
                              self._parameterNode.bestLineThreshold,
-                             self._parameterNode.bestLineCostFactor,
+                             self._parameterNode.bestLineSigma,
+                             self._parameterNode.minimumBoneWidth,
                              int(self._parameterNode.segmentationThickness),
                              int(self.ui.rangeSlices.minimumValue),
                              int(self.ui.rangeSlices.maximumValue),
                              self._parameterNode.previewVolume,
-                             self._parameterNode.outputSegmentation)
+                             self._parameterNode.outputSegmentation,
+                             self.ui)
             
     def onPreprocessButton(self) -> None:
         """
@@ -355,15 +359,15 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         """
         Run processing when user clicks "Preprocess" button.
         """
-        # self.ui.rangeSlices.minimum = 
-        # self.ui.rangeSlices.maximum = 
         layoutManager = slicer.app.layoutManager()
         red = layoutManager.sliceWidget("Red")
         redLogic = red.sliceLogic()
         redCurrentSlice = redLogic.GetSliceOffset()
         self.ui.rangeSlices.minimumValue = redCurrentSlice
         self.ui.rangeSlices.maximumValue = redCurrentSlice
-        
+        # Do the instruction once more in case the first one failed
+        self.ui.rangeSlices.minimumValue = redCurrentSlice
+        self.ui.rangeSlices.maximumValue = redCurrentSlice
         
     def onAllVolumeButton(self) -> None:
         """
@@ -371,6 +375,18 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         """
         self.ui.rangeSlices.minimumValue = self.ui.rangeSlices.minimum
         self.ui.rangeSlices.maximumValue = self.ui.rangeSlices.maximum
+        # Do the instruction once more in case the first one failed
+        self.ui.rangeSlices.minimumValue = self.ui.rangeSlices.minimum
+        self.ui.rangeSlices.maximumValue = self.ui.rangeSlices.maximum
+        
+            
+    def onPreviewButton(self) -> None:
+        """
+        Run processing when user clicks "Preprocess" button.
+        """
+        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+
+            self.logic.showVolume(self.ui, self._parameterNode.previewVolume)
 
 #
 # UltrasoundBoneLabelerLogic
@@ -419,6 +435,40 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                                                          segmentId=segmentName,
                                                          referenceVolumeNode=inputVolume)
         
+    def showVolume(self, ui, previewVolume) -> None:
+        if ui.radioButton.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.array3D[:, ::-1, ::-1])
+        if ui.radioButton1.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.gaussian3D[:, ::-1, ::-1])
+        if ui.radioButton2.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.mask3D[:, ::-1, ::-1])
+        if ui.radioButton3.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.LoG3D[:, ::-1, ::-1])
+        if ui.radioButton4.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.Shadow3D[:, ::-1, ::-1])
+        if ui.radioButton5.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.energy3D[:, ::-1, ::-1])
+        if ui.radioButton6.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.phase3D[:, ::-1, ::-1])
+        if ui.radioButton7.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.symmetry3D[:, ::-1, ::-1])
+        if ui.radioButton8.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.ibs3D[:, ::-1, ::-1])
+        if ui.radioButton9.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.probMap3D[:, ::-1, ::-1])
+        if ui.radioButton10.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.closedMap3D[:, ::-1, ::-1])
+        if ui.radioButton11.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.contour3D[:, ::-1, ::-1])
+        if ui.radioButton12.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.label3D[:, ::-1, ::-1])
+        if ui.radioButton13.isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.tracedLabel3D[:, ::-1, ::-1])
+                
+        # Show the preview volume in slicer
+        slicer.util.setSliceViewerLayers(background=previewVolume)
+        
+        
     def apply(self,
                 inputVolume: vtkMRMLScalarVolumeNode,
                 gaussianKernelSize: int,
@@ -430,12 +480,14 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                 localPhaseSigma: float,
                 localPhaseWavelength: float,
                 bestLineThreshold: float,
-                bestLineCostFactor: float,
+                bestLineSigma: float,
+                minimumBoneWidth: float,
                 segmentationThickness: int,
                 startingSlice: int,
                 endingSlice: int,
                 previewVolume: vtkMRMLScalarVolumeNode,
                 outputSegmentation: vtkMRMLSegmentationNode,
+                ui,
                 segmentName: str="Bone surface") -> None:
         """
         Run the processing algorithm.
@@ -454,10 +506,11 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         logging.info('Processing started')
 
         # Get the 3D numpy array from the slicer volume
-        array3D = slicer.util.arrayFromVolume(inputVolume)[:, ::-1, ::-1]
+        self.array3D = slicer.util.arrayFromVolume(inputVolume)[:, ::-1, ::-1]
         
         # Declare the algorithm classes
-        boneProbMap = bone_probability_mapping.BoneProbabilityMapping(array3D[0].shape,
+        numberOfImages = self.array3D[0].shape
+        self.boneProbMap = bone_probability_mapping.BoneProbabilityMapping(numberOfImages,
                                                                       gaussianKernelSize,
                                                                       binaryThreshold,
                                                                       transducerMargin,
@@ -467,35 +520,44 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                                                                       localPhaseSigma,
                                                                       localPhaseWavelength)
         
-        boneSurfId = bone_surface_identification.BoneSurfaceIdentification((15, 25),
+        boneSurfId = bone_surface_identification.BoneSurfaceIdentification((9, 15),
                                                                            bestLineThreshold,
-                                                                           bestLineCostFactor,
+                                                                           bestLineSigma,
+                                                                           minimumBoneWidth,
                                                                            segmentationThickness)
         
         # If a segmentation already exists, start from it
         segment = outputSegmentation.GetSegmentation().GetSegment(segmentName)
         if segment:
-            label3D = slicer.util.arrayFromSegmentBinaryLabelmap(outputSegmentation, segmentName, inputVolume).astype(np.uint8)
+            self.tracedLabel3D = slicer.util.arrayFromSegmentBinaryLabelmap(outputSegmentation, segmentName, inputVolume).astype(np.uint8)[:, ::-1, ::-1]
             
-        # Otherwise create a new one
+        # Otherwise instanciate the arrays
         else:
-            label3D = np.zeros(array3D.shape, dtype=np.uint8)
+            self.gaussian3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.mask3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.LoG3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.Shadow3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.energy3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.phase3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.symmetry3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.ibs3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.probMap3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.closedMap3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.contour3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.label3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.tracedLabel3D = np.zeros(self.array3D.shape, dtype=np.uint8)
         
         # Apply the algorithm on every image
-        for i, array2D in enumerate(array3D[startingSlice:endingSlice]):
+        for i, array2D in enumerate(self.array3D[startingSlice:endingSlice+1]):
             i = startingSlice+i
-            label3D[i] = boneProbMap.apply_all_filters(array3D[i])
-            label3D[i] = boneSurfId.identify_bone_surface(label3D[i])
-            # arrayColor[i] = boneSurfId.draw_on_image(array3D[i], label3D[i], (0, 0, 255))
+            self.gaussian3D[i], self.mask3D[i], self.LoG3D[i], self.Shadow3D[i], self.energy3D[i], self.phase3D[i], self.symmetry3D[i], self.ibs3D[i], self.probMap3D[i] = self.boneProbMap.apply_all_filters(self.array3D[i])
+            self.closedMap3D[i], self.contour3D[i], self.label3D[i], self.tracedLabel3D[i] = boneSurfId.identify_bone_surface(self.probMap3D[i])
             
         # Update the volume node with the processed array
-        slicer.util.updateVolumeFromArray(previewVolume, label3D[:, ::-1, ::-1])
-        
-        # Show the preview volume in slicer
-        slicer.util.setSliceViewerLayers(background=inputVolume)
+        self.showVolume(ui, previewVolume)
         
         # Actualize the segmentation
-        self.createSegmentation(inputVolume, outputSegmentation, label3D[:, ::-1, ::-1], segmentName)
+        self.createSegmentation(inputVolume, outputSegmentation, self.tracedLabel3D[:, ::-1, ::-1], segmentName)
         
         # Show the segmentation in 3D
         outputSegmentation.CreateClosedSurfaceRepresentation()

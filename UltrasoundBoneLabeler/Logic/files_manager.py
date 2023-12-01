@@ -92,7 +92,6 @@ class FileManager:
         
         # Get the gradient to check for variation in the maximals
         grad = np.gradient(max)[::-1]
-        print(grad)
         
         # Detect the peaks above the threshold
         peak = np.argwhere(grad > threshold)
@@ -113,9 +112,7 @@ class FileManager:
         """
         # First, remove the gray bars from the image.
         first_image = image_array[0]
-        print(first_image.shape)
         left, right = self._crop_gray_bars(first_image)
-        print(left, right)
         
         # Then, remove the white grid from the image
         first_image_no_bars = first_image[:, left:right]

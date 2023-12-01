@@ -6,13 +6,15 @@ class BoneSurfaceIdentification:
     def __init__(self,
                  str_elem_size: tuple=(15, 25),
                  threshold: float=0.1,
-                 cost_factor: float=0.1,
-                 thickness: int=3,
+                 sigma: float=10,
+                 bone_width_min: float=0.4,
+                 thickness: int=4,
                  color: tuple=(255, 0, 0)) -> None:
         
         self.str_elem_size = str_elem_size
         self.threshold = threshold
-        self.cost_factor = cost_factor
+        self.sigma = sigma
+        self.bone_width_min = bone_width_min
         self.thickness = thickness
         self.color = color
         
@@ -63,6 +65,9 @@ class BoneSurfaceIdentification:
         max_sum = 0
         max_cnt = 0
         
+        # Square the image to give emphasis to the light pixels
+        img_squared = img**2
+        
         # If no contour is detected, return None
         if len(cnts) == 0:
             return None
@@ -72,45 +77,62 @@ class BoneSurfaceIdentification:
             temp = np.zeros(img.shape, np.uint8)
             cv2.drawContours(temp, cnt, -1, 255, cv2.FILLED)
             temp = temp.astype(np.float64)
-            sum = np.sum(temp*img)
+            sum = np.sum(temp*img_squared)
             if sum > max_sum:
                 max_sum = sum
                 max_cnt = i
         return max_cnt
+    
+    def gaussian(self, x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
+        """Create a one dimension gaussian array.
 
-    def trace_best_line(self, col_start, col_stop, starting_point, best_line, img, threshold_int, cost_factor):
+        Keyword arguments:
+        x -- values on which to apply the gaussian function
+        mu -- the mean of the distribution
+        sigma -- the variance of the distribution
+        Return: the one dimension gaussian to compute the shadow value
+        """
+        return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sigma, 2.)))
+    
+
+    def trace_best_line(self, col_start, col_stop, starting_point, best_line, img, threshold_int, sigma):
         rows = img.shape[0]
         inc = np.sign(col_stop - col_start)
         prev_max = starting_point[0]
+        col_count = 0
         for c in range(col_start, col_stop, inc):
             # Compute the cost of the column
-            index_cost = np.arange(-prev_max, rows-prev_max)**2 * cost_factor
-            column_cost = img[:, c] - index_cost
+            index_cost = self.gaussian(np.arange(-prev_max, rows-prev_max), 0, sigma)
+            column_cost = img[:, c] * index_cost
             column_cost_thresholded = np.clip(column_cost - threshold_int, 0, 255)
             best_row = column_cost_thresholded.argmax()
             if best_row == 0:
                 break
             best_line[best_row, c] = 255
             prev_max = best_row
+            col_count += 1
+        
+        return col_count
 
 
-    def dynamic_selection(self, img, weighted_contour, threshold=0.1, cost_factor=0.1):
+    def dynamic_selection(self, img, weighted_contour, threshold=0.1, sigma=10):
         
         best_line = np.zeros(img.shape, np.uint8)
         threshold_int = round(threshold*255)
         cols = img.shape[1]
+        col_count = 0
         
         # Start from the brightest point
         brightest_point  = np.unravel_index(np.argmax(weighted_contour), weighted_contour.shape)
         best_line[brightest_point] = 255
         
         # Trace to the right side
-        self.trace_best_line(brightest_point[1]+1, cols, brightest_point, best_line, img, threshold_int, cost_factor)
+        col_count += self.trace_best_line(brightest_point[1]+1, cols, brightest_point, best_line, img, threshold_int, sigma)
         
         # Trace to the left side
-        self.trace_best_line(brightest_point[1]-1, 0, brightest_point, best_line, img, threshold_int, cost_factor)
+        col_count += self.trace_best_line(brightest_point[1]-1, 0, brightest_point, best_line, img, threshold_int, sigma)
         
-        return best_line
+        return best_line, col_count
     
     def thicken_line(self, img, thickness):
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (thickness, thickness))
@@ -132,15 +154,16 @@ class BoneSurfaceIdentification:
         out = np.zeros(img.shape, np.uint8)
         best_line = np.zeros(img.shape, np.uint8)
         
+        
         # Iterate on the column of the heaviest contour and draw the brighest pixel on a new image
         if cnt_id is not None:
             cv2.drawContours(out, cnts, cnt_id, 255, cv2.FILLED)
             out = out.astype(np.float64)
             weighted_contour = out * img
-            best_line = self.dynamic_selection(img, weighted_contour, self.threshold, self.cost_factor)
+            best_line, col_count = self.dynamic_selection(img, weighted_contour, self.threshold, self.sigma)
             best_line_thickened = self.thicken_line(best_line, self.thickness)
             
-        return best_line_thickened
+        return weighted_contour, best_line_thickened, col_count
 
 
     def draw_on_image(self, img: np.ndarray, label: np.ndarray, color: tuple=(255, 0, 0)) -> np.ndarray:
@@ -168,9 +191,22 @@ class BoneSurfaceIdentification:
         Return: the label containing the surface of the bone
         """
         
+        col_count = 0
+        image_width = img.shape[1]
+        
         # Apply the algorithm to return the new labeled image
         closed_img = self.bone_closing(img=img, str_elem_size=self.str_elem_size)
         cnts = self.get_contours(img=closed_img, threshold=self.threshold)
-        label = self.label_image(img=closed_img, cnts=cnts)
-        return label
+        weighted_contour, label, col_count = self.label_image(img=closed_img, cnts=cnts)
+                    
+        # Check if the width of the segmentation is wide enough to be considered a bone
+        if image_width*self.bone_width_min >= col_count:
+            traced_line = np.zeros(img.shape).astype(np.uint8)
+        else:
+            traced_line = label
+            
+        closed_img = cv2.normalize(closed_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        weighted_contour = cv2.normalize(weighted_contour, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        
+        return closed_img, weighted_contour, label, traced_line
         

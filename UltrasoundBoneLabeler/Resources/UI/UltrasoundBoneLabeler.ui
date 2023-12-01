@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>442</width>
-    <height>1043</height>
+    <height>1159</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -75,6 +75,9 @@
         </property>
         <property name="checked">
          <bool>true</bool>
+        </property>
+        <property name="tristate">
+         <bool>false</bool>
         </property>
         <property name="SlicerParameterName" stdset="0">
          <string>autoCropping</string>
@@ -231,69 +234,47 @@
          <string>Parameters</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_4">
-         <item row="6" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="bestLineThresholdSlider">
+         <item row="5" column="2" colspan="2">
+          <widget class="ctkSliderWidget" name="localPhaseWavelengthSlider">
            <property name="singleStep">
             <double>0.010000000000000</double>
            </property>
            <property name="pageStep">
             <double>0.100000000000000</double>
            </property>
-           <property name="maximum">
+           <property name="minimum">
             <double>1.000000000000000</double>
            </property>
+           <property name="maximum">
+            <double>6.000000000000000</double>
+           </property>
            <property name="value">
-            <double>0.100000000000000</double>
+            <double>2.000000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
-            <string>bestLineThreshold</string>
+            <string>localPhaseWavelength</string>
            </property>
           </widget>
          </item>
-         <item row="5" column="0">
-          <widget class="QLabel" name="label_8">
-           <property name="text">
-            <string>Local Phase Wavelength:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="label_6">
-           <property name="text">
-            <string>Shadow Sigma:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="7" column="0">
-          <widget class="QLabel" name="label_10">
-           <property name="text">
-            <string>Best Line Cost Factor:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="label_7">
-           <property name="text">
-            <string>Local Phase Sigma:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="binaryThresholdSlider">
+         <item row="4" column="2" colspan="2">
+          <widget class="ctkSliderWidget" name="localPhaseSigmaSlider">
            <property name="singleStep">
             <double>0.010000000000000</double>
            </property>
            <property name="pageStep">
             <double>0.100000000000000</double>
            </property>
+           <property name="minimum">
+            <double>0.100000000000000</double>
+           </property>
            <property name="maximum">
-            <double>1.000000000000000</double>
+            <double>3.000000000000000</double>
            </property>
            <property name="value">
-            <double>0.200000000000000</double>
+            <double>0.500000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
-            <string>binaryThreshold</string>
+            <string>localPhaseSigma</string>
            </property>
           </widget>
          </item>
@@ -316,88 +297,10 @@
            </property>
           </widget>
          </item>
-         <item row="5" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="localPhaseWavelengthSlider">
-           <property name="singleStep">
-            <double>0.010000000000000</double>
-           </property>
-           <property name="pageStep">
-            <double>0.100000000000000</double>
-           </property>
-           <property name="maximum">
-            <double>6.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>2.000000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>localPhaseWavelength</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="localPhaseSigmaSlider">
-           <property name="singleStep">
-            <double>0.010000000000000</double>
-           </property>
-           <property name="pageStep">
-            <double>0.100000000000000</double>
-           </property>
-           <property name="maximum">
-            <double>3.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>0.500000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>localPhaseSigma</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_4">
-           <property name="text">
-            <string>Gaussian Kernel Size:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="2" colspan="2">
-          <widget class="ctkSliderWidget" name="transducerMarginSlider">
-           <property name="singleStep">
-            <double>0.010000000000000</double>
-           </property>
-           <property name="pageStep">
-            <double>0.100000000000000</double>
-           </property>
-           <property name="maximum">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>0.100000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>transducerMargin</string>
-           </property>
-          </widget>
-         </item>
          <item row="6" column="0">
           <widget class="QLabel" name="label_9">
            <property name="text">
             <string>Best Line Threshold:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_3">
-           <property name="text">
-            <string>Transducer Margin:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="label_2">
-           <property name="text">
-            <string>Binary Threshold:</string>
            </property>
           </widget>
          </item>
@@ -429,8 +332,80 @@
            </property>
           </widget>
          </item>
+         <item row="7" column="0">
+          <widget class="QLabel" name="label_10">
+           <property name="text">
+            <string>Best Line Sigma:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2" colspan="2">
+          <widget class="ctkSliderWidget" name="binaryThresholdSlider">
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.200000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>binaryThreshold</string>
+           </property>
+          </widget>
+         </item>
          <item row="7" column="2" colspan="2">
           <widget class="ctkSliderWidget" name="bestLineCostFactorSlider">
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="singleStep">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>40.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>bestLineSigma</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_4">
+           <property name="text">
+            <string>Gaussian Kernel Size:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="label_8">
+           <property name="text">
+            <string>Local Phase Wavelength:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_6">
+           <property name="text">
+            <string>Shadow Sigma:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="2" colspan="2">
+          <widget class="ctkSliderWidget" name="bestLineThresholdSlider">
            <property name="singleStep">
             <double>0.010000000000000</double>
            </property>
@@ -444,7 +419,73 @@
             <double>0.100000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
-            <string>bestLineCostFactor</string>
+            <string>bestLineThreshold</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="label_7">
+           <property name="text">
+            <string>Local Phase Sigma:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2" colspan="2">
+          <widget class="ctkSliderWidget" name="transducerMarginSlider">
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>transducerMargin</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Binary Threshold:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_3">
+           <property name="text">
+            <string>Transducer Margin:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="0">
+          <widget class="QLabel" name="label_19">
+           <property name="text">
+            <string>Minimum Bone Width:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="2" colspan="2">
+          <widget class="ctkSliderWidget" name="SliderWidget_3">
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="pageStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.400000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>minimumBoneWidth</string>
            </property>
           </widget>
          </item>
@@ -497,6 +538,9 @@
            <property name="pageStep">
             <double>1.000000000000000</double>
            </property>
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
            <property name="maximum">
             <double>4.000000000000000</double>
            </property>
@@ -539,7 +583,7 @@
             <double>10.000000000000000</double>
            </property>
            <property name="value">
-            <double>3.000000000000000</double>
+            <double>4.000000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
             <string>segmentationThickness</string>
@@ -600,57 +644,60 @@
      <property name="text">
       <string>Preview selection</string>
      </property>
-     <layout class="QGridLayout" name="gridLayout_7">
-      <item row="1" column="1">
-       <widget class="QRadioButton" name="radioButton5">
-        <property name="text">
-         <string>Local Energy</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QRadioButton" name="radioButton1">
-        <property name="text">
-         <string>Gaussian Blur</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QRadioButton" name="radioButton8">
-        <property name="text">
-         <string>IBS Energy</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
+     <layout class="QGridLayout" name="gridLayout_6">
+      <item row="0" column="3">
        <widget class="QRadioButton" name="radioButton2">
         <property name="text">
          <string>Binary Threshold</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
-       <widget class="QRadioButton" name="radioButton7">
+      <item row="5" column="1" colspan="3">
+       <widget class="QPushButton" name="previewButton">
         <property name="text">
-         <string>Phase Symmetry</string>
+         <string>Preview</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="3">
+       <widget class="QRadioButton" name="radioButton8">
+        <property name="text">
+         <string>IBS Energy</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QRadioButton" name="radioButton1">
+        <property name="text">
+         <string>Gaussian Blur</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
        <widget class="QRadioButton" name="radioButton4">
         <property name="text">
          <string>Shadow Value</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="2">
-       <widget class="QRadioButton" name="radioButton3">
+      <item row="3" column="1">
+       <widget class="QRadioButton" name="radioButton9">
         <property name="text">
-         <string>Laplacian of Gaussian (LoG)</string>
+         <string>Bone Probability Mapping</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
-      <item row="1" column="2">
+      <item row="1" column="3">
+       <widget class="QRadioButton" name="radioButton5">
+        <property name="text">
+         <string>Local Energy</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
        <widget class="QRadioButton" name="radioButton6">
         <property name="text">
          <string>Local Phase</string>
@@ -660,20 +707,55 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="2">
-       <widget class="QRadioButton" name="radioButton9">
+      <item row="0" column="1">
+       <widget class="QRadioButton" name="radioButton">
         <property name="text">
-         <string>Bone Probability Mapping</string>
+         <string>Original Image</string>
         </property>
         <property name="checked">
          <bool>true</bool>
         </property>
        </widget>
       </item>
-      <item row="3" column="0" colspan="3">
-       <widget class="QPushButton" name="previewButton">
+      <item row="3" column="2">
+       <widget class="QRadioButton" name="radioButton10">
         <property name="text">
-         <string>Preview</string>
+         <string>Closed Map</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="3">
+       <widget class="QRadioButton" name="radioButton11">
+        <property name="text">
+         <string>Best Contour</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QRadioButton" name="radioButton7">
+        <property name="text">
+         <string>Phase Symmetry</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QRadioButton" name="radioButton3">
+        <property name="text">
+         <string>Laplacian of Gaussian (LoG)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QRadioButton" name="radioButton12">
+        <property name="text">
+         <string>Traced Bone</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="2">
+       <widget class="QRadioButton" name="radioButton13">
+        <property name="text">
+         <string>Bone segmentation</string>
         </property>
        </widget>
       </item>
