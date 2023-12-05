@@ -20,6 +20,19 @@ from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSegmentationNode, vtkMRMLVect
 
 from Logic import bone_probability_mapping, bone_surface_identification, files_manager
 
+# Default parameters constants
+GAUSSIAN_KERNEL_SIZE = 25
+BINARY_THRESHOLD = 0.2
+TRANSDUCER_MARGIN = 0.1
+SHADOW_SIGMA = 100
+LOCAL_PHASE_SIGMA = 0.5
+LOCAL_PHASE_WAVELENGTH = 2
+BEST_LINE_THRESHOLD = 0.15
+BEST_LINE_SIGMA = 10
+LOG_KERNEL_SIZE = 31
+SHADOW_NB_SIGMAS = 2
+SEGMENTATION_THICKNESS = 4
+MINIMUM_BONE_WIDTH = 0.4
 
 #
 # UltrasoundBoneLabeler
@@ -116,24 +129,24 @@ class UltrasoundBoneLabelerParameterNode:
     invertedVolume - The output volume that will contain the inverted thresholded volume.
     """
     inputVector: vtkMRMLVectorVolumeNode
-    autoCropping: bool = False
-    resize: bool = False
+    autoCropping: bool = True
+    resize: bool = True
     height: str = "256"
     width: str = "256"
     preprocessedVolume: vtkMRMLScalarVolumeNode
     inputVolume: vtkMRMLScalarVolumeNode
-    gaussianKernelSize: Annotated[float, WithinRange(1, 63)] = 25
-    binaryThreshold: Annotated[float, WithinRange(0, 1)] = 0.2
-    transducerMargin: Annotated[float, WithinRange(0, 1)] = 0.1
-    shadowSigma: Annotated[float, WithinRange(1, 200)] = 100
-    localPhaseSigma: Annotated[float, WithinRange(0.1, 3)] = 0.5
-    localPhaseWavelength: Annotated[float, WithinRange(1, 6)] = 2
-    bestLineThreshold: Annotated[float, WithinRange(0, 1)] = 0.15
-    bestLineSigma: Annotated[float, WithinRange(1, 40)] = 10
-    LoGKernelSize: Annotated[float, WithinRange(1, 31)] = 31
-    shadowNbSigmas: Annotated[float, WithinRange(1, 4)] = 2
-    segmentationThickness: Annotated[float, WithinRange(1, 10)] = 4
-    minimumBoneWidth: Annotated[float, WithinRange(0, 1)] = 0.4
+    gaussianKernelSize: Annotated[float, WithinRange(1, 63)] = GAUSSIAN_KERNEL_SIZE
+    binaryThreshold: Annotated[float, WithinRange(0, 1)] = BINARY_THRESHOLD
+    transducerMargin: Annotated[float, WithinRange(0, 1)] = TRANSDUCER_MARGIN
+    shadowSigma: Annotated[float, WithinRange(1, 200)] = SHADOW_SIGMA
+    localPhaseSigma: Annotated[float, WithinRange(0.1, 3)] = LOCAL_PHASE_SIGMA
+    localPhaseWavelength: Annotated[float, WithinRange(1, 6)] = LOCAL_PHASE_WAVELENGTH
+    bestLineThreshold: Annotated[float, WithinRange(0, 1)] = BEST_LINE_THRESHOLD
+    bestLineSigma: Annotated[float, WithinRange(1, 40)] = BEST_LINE_SIGMA
+    LoGKernelSize: Annotated[float, WithinRange(1, 31)] = LOG_KERNEL_SIZE
+    shadowNbSigmas: Annotated[float, WithinRange(1, 4)] = SHADOW_NB_SIGMAS
+    segmentationThickness: Annotated[float, WithinRange(1, 10)] = SEGMENTATION_THICKNESS
+    minimumBoneWidth: Annotated[float, WithinRange(0, 1)] = MINIMUM_BONE_WIDTH
     previewVolume: vtkMRMLScalarVolumeNode
     outputSegmentation: vtkMRMLSegmentationNode
 
@@ -189,6 +202,7 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.ui.preprocessButton.connect('clicked(bool)', self.onPreprocessButton)
         self.ui.currentSliceButton.connect('clicked(bool)', self.onCurrentSliceButton)
         self.ui.allVolumeButton.connect('clicked(bool)', self.onAllVolumeButton)
+        self.ui.defaultParametersButton.connect('clicked(bool)', self.onDefaultParametersButton)
         self.ui.previewButton.connect('clicked(bool)', self.onPreviewButton)
 
         # Make sure parameter node is initialized (needed for module reload)
@@ -253,6 +267,22 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             firstVectorNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLVectorVolumeNode")
             if firstVectorNode:
                 self._parameterNode.inputVector = firstVectorNode
+                
+        # Create a new volume for the preprocessed volume
+        if not self._parameterNode.preprocessedVolume:
+            volumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "Preprocessed Volume")
+            self._parameterNode.preprocessedVolume = volumeNode
+                
+        # Create a new volume for the preview
+        if not self._parameterNode.previewVolume:
+            volumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "Preview Volume")
+            self._parameterNode.previewVolume = volumeNode
+        
+        # If no segmentation exists, create a new one
+        if not self._parameterNode.outputSegmentation:
+            segmentationNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "Segmentation")
+            self._parameterNode.outputSegmentation = segmentationNode
+        
                 
         if self._parameterNode.inputVolume:
             self.onAllVolumeButton()
@@ -355,15 +385,6 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             # Refresh the input volume selector
             self._parameterNode.inputVolume = self._parameterNode.preprocessedVolume
             
-    def onDefaultParametersButton(self) -> None:
-        """
-        Run processing when user clicks "DefaultParameters" button.
-        """
-        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
-            
-            pass # TODO put the default parameters values
-        
-            
     def onCurrentSliceButton(self) -> None:
         """
         Run processing when user clicks "Preprocess" button.
@@ -388,6 +409,25 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.ui.rangeSlices.minimumValue = self.ui.rangeSlices.minimum
         self.ui.rangeSlices.maximumValue = self.ui.rangeSlices.maximum
         
+    def onDefaultParametersButton(self) -> None:
+        """
+        Run processing when user clicks "DefaultParameters" button.
+        """
+        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+            
+            self._parameterNode.gaussianKernelSize = GAUSSIAN_KERNEL_SIZE
+            self._parameterNode.binaryThreshold = BINARY_THRESHOLD
+            self._parameterNode.transducerMargin = TRANSDUCER_MARGIN
+            self._parameterNode.shadowSigma = SHADOW_SIGMA
+            self._parameterNode.localPhaseSigma = LOCAL_PHASE_SIGMA
+            self._parameterNode.localPhaseWavelength = LOCAL_PHASE_WAVELENGTH
+            self._parameterNode.bestLineThreshold = BEST_LINE_THRESHOLD
+            self._parameterNode.bestLineSigma = BEST_LINE_SIGMA
+            self._parameterNode.LoGKernelSize = LOG_KERNEL_SIZE
+            self._parameterNode.shadowNbSigmas = SHADOW_NB_SIGMAS
+            self._parameterNode.segmentationThickness = SEGMENTATION_THICKNESS
+            self._parameterNode.minimumBoneWidth = MINIMUM_BONE_WIDTH
+            self.onAllVolumeButton()
             
     def onPreviewButton(self) -> None:
         """
@@ -529,7 +569,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                                                                       localPhaseSigma,
                                                                       localPhaseWavelength)
         
-        boneSurfId = bone_surface_identification.BoneSurfaceIdentification((9, 15),
+        boneSurfId = bone_surface_identification.BoneSurfaceIdentification((1, 1),
                                                                            bestLineThreshold,
                                                                            bestLineSigma,
                                                                            minimumBoneWidth,
@@ -537,7 +577,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         
         # If a segmentation already exists, start from it
         segment = outputSegmentation.GetSegmentation().GetSegment(segmentName)
-        if segment:
+        if segment and 'self.tracedLabel3D' in locals():
             self.tracedLabel3D = slicer.util.arrayFromSegmentBinaryLabelmap(outputSegmentation, segmentName, inputVolume).astype(np.uint8)[:, ::-1, ::-1]
             
         # Otherwise instanciate the arrays

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>442</width>
-    <height>1159</height>
+    <height>1198</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -563,40 +563,11 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="defaultParametersButton">
-        <property name="text">
-         <string>Default parameters</string>
-        </property>
-       </widget>
-      </item>
-      <item>
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_3">
         <property name="title">
          <string>Output parameters</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_8">
-         <item row="0" column="1">
-          <widget class="ctkSliderWidget" name="SliderWidget">
-           <property name="decimals">
-            <number>0</number>
-           </property>
-           <property name="pageStep">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="minimum">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="maximum">
-            <double>10.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>4.000000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>segmentationThickness</string>
-           </property>
-          </widget>
-         </item>
          <item row="0" column="0">
           <widget class="QLabel" name="label_15">
            <property name="text">
@@ -638,6 +609,35 @@
              </widget>
             </item>
            </layout>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="ctkSliderWidget" name="SliderWidget">
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>4.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>segmentationThickness</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0" colspan="2">
+          <widget class="QPushButton" name="defaultParametersButton">
+           <property name="text">
+            <string>Default parameters</string>
+           </property>
           </widget>
          </item>
         </layout>
@@ -789,6 +789,9 @@
           <string>vtkMRMLSegmentationNode</string>
          </stringlist>
         </property>
+        <property name="showChildNodeTypes">
+         <bool>false</bool>
+        </property>
         <property name="hideChildNodeTypes">
          <stringlist notr="true"/>
         </property>
@@ -812,6 +815,9 @@
          <stringlist notr="true">
           <string>vtkMRMLScalarVolumeNode</string>
          </stringlist>
+        </property>
+        <property name="showChildNodeTypes">
+         <bool>false</bool>
         </property>
         <property name="hideChildNodeTypes">
          <stringlist notr="true"/>
