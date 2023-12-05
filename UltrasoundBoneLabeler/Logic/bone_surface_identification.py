@@ -4,33 +4,17 @@ import cv2
 
 class BoneSurfaceIdentification:
     def __init__(self,
-                 str_elem_size: tuple=(15, 25),
                  threshold: float=0.1,
                  sigma: float=10,
                  bone_width_min: float=0.4,
                  thickness: int=4,
                  color: tuple=(255, 0, 0)) -> None:
         
-        self.str_elem_size = str_elem_size
         self.threshold = threshold
         self.sigma = sigma
         self.bone_width_min = bone_width_min
         self.thickness = thickness
         self.color = color
-        
-                 
-    def bone_closing(self, img: np.ndarray, str_elem_size: tuple=(15, 25)) -> np.ndarray:
-        """Apply a closing on the bone to stick the part together.
-        
-        Keyword arguments:
-        img -- the bone probability mapping image
-        str_elem_size -- the size of the structuring element in a tuple format. The first value of the tuple is the height of the ellipse, the second value is the width.
-        Return: the closed image
-        """
-        
-        # Generate intermediate image; use morphological closing to keep parts of the bone together
-        str_elem = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, str_elem_size)
-        return cv2.morphologyEx(img, cv2.MORPH_CLOSE, str_elem)
 
 
     def get_contours(self, img: np.ndarray, threshold: float=0.1) -> tuple:
@@ -65,9 +49,6 @@ class BoneSurfaceIdentification:
         max_sum = 0
         max_cnt = 0
         
-        # Square the image to give emphasis to the light pixels
-        img_squared = img**2
-        
         # If no contour is detected, return None
         if len(cnts) == 0:
             return None
@@ -75,9 +56,8 @@ class BoneSurfaceIdentification:
         # Iterate on each contour and detect the heaviest
         for i, cnt in enumerate(cnts):
             temp = np.zeros(img.shape, np.uint8)
-            cv2.drawContours(temp, cnt, -1, 255, cv2.FILLED)
-            temp = temp.astype(np.float64)
-            sum = np.sum(temp*img_squared)
+            cv2.drawContours(temp, cnts, i, 255, cv2.FILLED)
+            sum = np.sum(temp*img)
             if sum > max_sum:
                 max_sum = sum
                 max_cnt = i
@@ -95,16 +75,21 @@ class BoneSurfaceIdentification:
         return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sigma, 2.)))
     
 
-    def trace_best_line(self, col_start, col_stop, starting_point, best_line, img, threshold_int, sigma):
+    def trace_best_line(self, col_start, col_stop, starting_point, best_line, img, threshold, sigma):
         rows = img.shape[0]
         inc = np.sign(col_stop - col_start)
         prev_max = starting_point[0]
         col_count = 0
         for c in range(col_start, col_stop, inc):
+            
             # Compute the cost of the column
             index_cost = self.gaussian(np.arange(-prev_max, rows-prev_max), 0, sigma)
             column_cost = img[:, c] * index_cost
-            column_cost_thresholded = np.clip(column_cost - threshold_int, 0, 255)
+            
+            # Remove the negative values
+            column_cost_thresholded = np.clip(column_cost - threshold, 0, 255)
+            
+            # Keep the best point of the column
             best_row = column_cost_thresholded.argmax()
             if best_row == 0:
                 break
@@ -118,7 +103,6 @@ class BoneSurfaceIdentification:
     def dynamic_selection(self, img, weighted_contour, threshold=0.1, sigma=10):
         
         best_line = np.zeros(img.shape, np.uint8)
-        threshold_int = round(threshold*255)
         cols = img.shape[1]
         col_count = 0
         
@@ -127,10 +111,10 @@ class BoneSurfaceIdentification:
         best_line[brightest_point] = 255
         
         # Trace to the right side
-        col_count += self.trace_best_line(brightest_point[1]+1, cols, brightest_point, best_line, img, threshold_int, sigma)
+        col_count += self.trace_best_line(brightest_point[1]+1, cols, brightest_point, best_line, img, threshold, sigma)
         
         # Trace to the left side
-        col_count += self.trace_best_line(brightest_point[1]-1, 0, brightest_point, best_line, img, threshold_int, sigma)
+        col_count += self.trace_best_line(brightest_point[1]-1, 0, brightest_point, best_line, img, threshold, sigma)
         
         return best_line, col_count
     
@@ -158,7 +142,6 @@ class BoneSurfaceIdentification:
         # Iterate on the column of the heaviest contour and draw the brighest pixel on a new image
         if cnt_id is not None:
             cv2.drawContours(out, cnts, cnt_id, 255, cv2.FILLED)
-            out = out.astype(np.float64)
             weighted_contour = out * img
             best_line, col_count = self.dynamic_selection(img, weighted_contour, self.threshold, self.sigma)
             best_line_thickened = self.thicken_line(best_line, self.thickness)
@@ -195,9 +178,9 @@ class BoneSurfaceIdentification:
         image_width = img.shape[1]
         
         # Apply the algorithm to return the new labeled image
-        closed_img = self.bone_closing(img=img, str_elem_size=self.str_elem_size)
-        cnts = self.get_contours(img=closed_img, threshold=self.threshold)
-        weighted_contour, label, col_count = self.label_image(img=closed_img, cnts=cnts)
+        cnts = self.get_contours(img=img, threshold=self.threshold)
+        img = cv2.normalize(img, None, 0, 1.0, cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+        weighted_contour, label, col_count = self.label_image(img=img, cnts=cnts)
                     
         # Check if the width of the segmentation is wide enough to be considered a bone
         if image_width*self.bone_width_min >= col_count:
@@ -205,8 +188,7 @@ class BoneSurfaceIdentification:
         else:
             traced_line = label
             
-        closed_img = cv2.normalize(closed_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         weighted_contour = cv2.normalize(weighted_contour, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         
-        return closed_img, weighted_contour, label, traced_line
+        return weighted_contour, label, traced_line
         

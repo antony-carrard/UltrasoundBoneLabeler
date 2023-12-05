@@ -26,13 +26,13 @@ BINARY_THRESHOLD = 0.2
 TRANSDUCER_MARGIN = 0.1
 SHADOW_SIGMA = 100
 LOCAL_PHASE_SIGMA = 0.5
-LOCAL_PHASE_WAVELENGTH = 2
-BEST_LINE_THRESHOLD = 0.15
-BEST_LINE_SIGMA = 10
+LOCAL_PHASE_WAVELENGTH = 150
+BEST_LINE_THRESHOLD = 0.02
+BEST_LINE_SIGMA = 5
 LOG_KERNEL_SIZE = 31
 SHADOW_NB_SIGMAS = 2
-SEGMENTATION_THICKNESS = 4
-MINIMUM_BONE_WIDTH = 0.4
+SEGMENTATION_THICKNESS = 5
+MINIMUM_BONE_WIDTH = 0.3
 
 #
 # UltrasoundBoneLabeler
@@ -140,7 +140,7 @@ class UltrasoundBoneLabelerParameterNode:
     transducerMargin: Annotated[float, WithinRange(0, 1)] = TRANSDUCER_MARGIN
     shadowSigma: Annotated[float, WithinRange(1, 200)] = SHADOW_SIGMA
     localPhaseSigma: Annotated[float, WithinRange(0.1, 3)] = LOCAL_PHASE_SIGMA
-    localPhaseWavelength: Annotated[float, WithinRange(1, 6)] = LOCAL_PHASE_WAVELENGTH
+    localPhaseWavelength: Annotated[float, WithinRange(10, 500)] = LOCAL_PHASE_WAVELENGTH
     bestLineThreshold: Annotated[float, WithinRange(0, 1)] = BEST_LINE_THRESHOLD
     bestLineSigma: Annotated[float, WithinRange(1, 40)] = BEST_LINE_SIGMA
     LoGKernelSize: Annotated[float, WithinRange(1, 31)] = LOG_KERNEL_SIZE
@@ -569,16 +569,16 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                                                                       localPhaseSigma,
                                                                       localPhaseWavelength)
         
-        boneSurfId = bone_surface_identification.BoneSurfaceIdentification((1, 1),
-                                                                           bestLineThreshold,
+        boneSurfId = bone_surface_identification.BoneSurfaceIdentification(bestLineThreshold,
                                                                            bestLineSigma,
                                                                            minimumBoneWidth,
                                                                            segmentationThickness)
         
         # If a segmentation already exists, start from it
         segment = outputSegmentation.GetSegmentation().GetSegment(segmentName)
-        if segment and 'self.tracedLabel3D' in locals():
+        if segment:
             self.tracedLabel3D = slicer.util.arrayFromSegmentBinaryLabelmap(outputSegmentation, segmentName, inputVolume).astype(np.uint8)[:, ::-1, ::-1]
+            
             
         # Otherwise instanciate the arrays
         else:
@@ -591,7 +591,6 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
             self.symmetry3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.ibs3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.probMap3D = np.zeros(self.array3D.shape, dtype=np.uint8)
-            self.closedMap3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.contour3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.label3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.tracedLabel3D = np.zeros(self.array3D.shape, dtype=np.uint8)
@@ -600,7 +599,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         for i, array2D in enumerate(self.array3D[startingSlice:endingSlice+1]):
             i = startingSlice+i
             self.gaussian3D[i], self.mask3D[i], self.LoG3D[i], self.Shadow3D[i], self.energy3D[i], self.phase3D[i], self.symmetry3D[i], self.ibs3D[i], self.probMap3D[i] = self.boneProbMap.apply_all_filters(self.array3D[i])
-            self.closedMap3D[i], self.contour3D[i], self.label3D[i], self.tracedLabel3D[i] = boneSurfId.identify_bone_surface(self.probMap3D[i])
+            self.contour3D[i], self.label3D[i], self.tracedLabel3D[i] = boneSurfId.identify_bone_surface(self.probMap3D[i])
             
         # Update the volume node with the processed array
         self.showVolume(ui, previewVolume)

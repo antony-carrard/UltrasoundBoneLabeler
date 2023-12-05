@@ -31,21 +31,10 @@ class BoneProbabilityMapping:
         self.phase_symmetry_epsilon = phase_symmetry_epsilon
         
         # Compute the spherical quadratude filters 
-        self.gabor_even, self.gabor_odd_1, self.gabor_odd_2 = self.spherical_quadratude_filters(sigma=self.quad_filter_sigma, wavelength=self.quad_filter_wavelength)
+        self.gabor_filter, self.riesz_filter = self.spherical_quadratude_filters(sigma=self.quad_filter_sigma, wavelength=self.quad_filter_wavelength)
         
         # Check if optimizing the images dimensions is necessary
         self.dimension_optimization, self.optimal_dimensions = self.check_dimensions()
-
-
-    def min_max_normalization(self, img: np.ndarray) -> np.ndarray:
-        """Normalize the image between 0 and 1
-        
-        Keyword arguments:
-        img -- the image to normalize
-        Return: the normalized image
-        """
-        
-        return (img - np.min(img)) / (np.max(img) - np.min(img)) if np.max(img) - np.min(img) else img
 
 
     def gaussian_filter(self, img: np.ndarray, kernel_size: int=25) -> np.ndarray:
@@ -98,7 +87,7 @@ class BoneProbabilityMapping:
 
         # Only keep the negative pixels
         laplacian = -laplacian
-        laplacian = self.min_max_normalization(laplacian)
+        laplacian /= np.max(laplacian)
         laplacian = np.clip(laplacian, 0, 1)
         
         return laplacian
@@ -180,14 +169,14 @@ class BoneProbabilityMapping:
             shadow_img[a] = numerator / denominator
         
         # Invert the intensity to brighten the pixels with the shadow underneath
-        shadow_img = self.min_max_normalization(shadow_img)
+        shadow_img /= np.max(shadow_img)
         shadow_img = 1 - shadow_img
         shadow_img = shadow_img**2
         
         return shadow_img
 
 
-    def spherical_quadratude_filters(self, sigma: float=0.5, wavelength: float=2.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def spherical_quadratude_filters(self, sigma: float=0.5, wavelength: float=400) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """This function compute the monogenic signals to later compute the local energy, local phase and phase symmetry.
 
         Keyword arguments:
@@ -199,19 +188,19 @@ class BoneProbabilityMapping:
         rows, cols = self.img_dimensions
         
         # Compute the frequency image
-        centre_frequency = 2*np.pi*wavelength
+        centre_frequency = 2*np.pi/wavelength
         xy = np.mgrid[-rows//2:rows//2, -cols//2:cols//2]
-        frequency = np.sqrt(xy[0]**2 + xy[1]**2)
-        frequency[math.ceil(rows/2), math.ceil(cols/2)] = 1e-6 # Avoid division by zero
+        xy = xy / np.max((rows, cols))
+        frequency_x = xy[1]
+        frequency_y = xy[0]
+        frequency = np.sqrt(frequency_y**2 + frequency_x**2)
+        frequency[math.ceil(rows/2), math.ceil(cols/2)] = 1e-300 # Avoid division by zero
         
         # Compute the even monogenic signal
-        gabor_even = np.exp(-0.5*np.log(frequency/centre_frequency)**2/np.log(sigma)**2)
+        log_gabor_filter = np.exp(-np.log(frequency/centre_frequency)**2/(2*np.log(sigma)**2))
+        riesz_filter = (1j * frequency_y - frequency_x)/ frequency
         
-        # Compute the two odds monogenic signals
-        gabor_odd_1 = 1j * xy[1] / frequency * gabor_even
-        gabor_odd_2 = 1j * xy[0] / frequency * gabor_even
-        
-        return gabor_even, gabor_odd_1, gabor_odd_2
+        return log_gabor_filter, riesz_filter
     
     
     def check_dimensions(self):
@@ -244,14 +233,18 @@ class BoneProbabilityMapping:
         rows,cols = self.img_dimensions
         nrows,ncols = self.optimal_dimensions
 
-        # Add the padding to the image
+        # Convert the image type if the image is complex
         nimg = np.zeros((nrows,ncols))
+        if img.dtype == np.complex128:
+            nimg = nimg.astype(np.complex128)
+        
+        # Add the padding to the image
         nimg[:rows,:cols] = img
 
         return nimg
 
 
-    def monogenic_signal(self, img: np.ndarray, gabor_even: np.ndarray, gabor_odd_1: np.ndarray, gabor_odd_2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def monogenic_signal(self, img: np.ndarray, gabor_filter: np.ndarray, riesz_filter: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Create the monogenic signal to later construct the local energy, the local phase and the local symmetry.
 
         Keyword arguments:
@@ -266,25 +259,32 @@ class BoneProbabilityMapping:
         if self.dimension_optimization:
             # get the optimal dimensions of the image
             nimg = self.optimize_fft_dimensions(img)
-            ngabor_even = self.optimize_fft_dimensions(gabor_even)
-            ngabor_odd_1 = 1j * self.optimize_fft_dimensions(np.imag(gabor_odd_1))
-            ngabor_odd_2 = 1j * self.optimize_fft_dimensions(np.imag(gabor_odd_2))
+            ngabor_filter = self.optimize_fft_dimensions(gabor_filter)
+            nriesz_filter = self.optimize_fft_dimensions(riesz_filter)
 
             # Build the monogenic signals
-            mono_even = np.real(fftpack.ifft2(fftpack.ifftshift(fftpack.fftshift(fftpack.fft2(nimg)) * ngabor_even)))
-            mono_odd_1 = np.real(fftpack.ifft2(fftpack.ifftshift(fftpack.fftshift(fftpack.fft2(nimg)) * ngabor_odd_1)))
-            mono_odd_2 = np.real(fftpack.ifft2(fftpack.ifftshift(fftpack.fftshift(fftpack.fft2(nimg)) * ngabor_odd_2)))
+            fft_filter = fftpack.fft2(nimg) * fftpack.ifftshift(ngabor_filter)
+            mono_even = np.real(fftpack.ifft2(fft_filter))
+            mono_odd_complex = fftpack.ifft2(fft_filter * fftpack.ifftshift(nriesz_filter))
+            mono_odd_1 = np.real(mono_odd_complex)
+            mono_odd_2 = np.imag(mono_odd_complex)
 
             # Crop the image to get back to the original dimensions of the image
-            rows,cols = gabor_even.shape
+            rows,cols = img.shape
             mono_even = mono_even[:rows,:cols]
             mono_odd_1 = mono_odd_1[:rows,:cols]
             mono_odd_2 = mono_odd_2[:rows,:cols]
         else:
             # Build the monogenic signals
-            mono_even = np.real(fftpack.ifft2(fftpack.ifftshift(fftpack.fftshift(fftpack.fft2(img)) * gabor_even)))
-            mono_odd_1 = np.real(fftpack.ifft2(fftpack.ifftshift(fftpack.fftshift(fftpack.fft2(img)) * gabor_odd_1)))
-            mono_odd_2 = np.real(fftpack.ifft2(fftpack.ifftshift(fftpack.fftshift(fftpack.fft2(img)) * gabor_odd_2)))
+            fft_filter = fftpack.fft2(img) * fftpack.ifftshift(gabor_filter)
+            mono_even = np.real(fftpack.ifft2(fft_filter))
+            mono_odd_complex = fftpack.ifft2(fft_filter * fftpack.ifftshift(riesz_filter))
+            mono_odd_1 = np.real(mono_odd_complex)
+            mono_odd_2 = np.imag(mono_odd_complex)
+            
+        mono_even /= np.max(mono_even)
+        mono_odd_1 /= np.max(mono_odd_1)
+        mono_odd_2 /= np.max(mono_odd_2)
             
         mono_odd = np.sqrt(mono_odd_1**2 + mono_odd_2**2)
         
@@ -301,9 +301,6 @@ class BoneProbabilityMapping:
         """
         local_energy = np.sqrt(mono_even**2 + mono_odd**2)
 
-        # Min-max normalize the image
-        local_energy = self.min_max_normalization(local_energy)
-
         return local_energy
 
 
@@ -317,13 +314,10 @@ class BoneProbabilityMapping:
         """
         local_phase = np.arctan2(mono_even, mono_odd)
 
-        # Min-max normalize the image
-        local_phase = self.min_max_normalization(local_phase)
-
         return local_phase
 
 
-    def phase_symmetry(self, mono_even: np.ndarray, mono_odd: np.ndarray, local_energy: np.ndarray, threshold: float=0.01, epsilon: float=0.001) -> np.ndarray:
+    def phase_symmetry(self, mono_even: np.ndarray, mono_odd: np.ndarray, local_energy: np.ndarray, threshold: float=0.0, epsilon: float=1e-300) -> np.ndarray:
         """Construct the phase symmetry from the monogenic signals.
         
         Keyword arguments:
@@ -337,7 +331,7 @@ class BoneProbabilityMapping:
         phase_symmetry = (np.abs(mono_even) - mono_odd - threshold) / (local_energy + epsilon)
 
         # Min-max normalize the image
-        phase_symmetry = self.min_max_normalization(phase_symmetry)
+        phase_symmetry /= np.max(phase_symmetry)
 
         # Remove the negative part
         phase_symmetry = np.clip(phase_symmetry, 0, 1)
@@ -354,9 +348,6 @@ class BoneProbabilityMapping:
         """
         # Cumulative sum of each row
         ibs = np.cumsum(img**2, axis=0)
-            
-        # Normalize between 0 and 1
-        ibs = self.min_max_normalization(ibs)
         
         return ibs
 
@@ -377,9 +368,6 @@ class BoneProbabilityMapping:
         Return: the bone probability mapping
         """
         prob_map = img * mask * laplacian * shadow_image * local_energy * local_phase * phase_symmetry * ibs
-        
-        # Normalize the image to uint8
-        prob_map = cv2.normalize(prob_map, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
 
         return prob_map
 
@@ -394,9 +382,9 @@ class BoneProbabilityMapping:
         gaussian_img = self.gaussian_filter(img=img, kernel_size=self.gaussian_kernel_size)
         mask = self.apply_mask(img=gaussian_img, threshold=self.binary_threshold, top_layer=self.top_layer)
         laplacian = self.laplacian_of_gaussian(img=gaussian_img, kernel_size=self.log_kernel_size)
-        gaussian_img = self.min_max_normalization(gaussian_img)
+        gaussian_img = cv2.normalize(gaussian_img, None, 0, 1.0, cv2.NORM_MINMAX, dtype=cv2.CV_32F)
         shadow_image = self.shadow_value(img=gaussian_img, mask=mask, sigma=self.shadow_sigma, number_of_sigmas=self.shadow_n_sigmas)
-        mono_even, mono_odd = self.monogenic_signal(img=gaussian_img, gabor_even=self.gabor_even, gabor_odd_1=self.gabor_odd_1, gabor_odd_2=self.gabor_odd_2)
+        mono_even, mono_odd = self.monogenic_signal(img=img, gabor_filter=self.gabor_filter, riesz_filter=self.riesz_filter)
         local_energy_img = self.local_energy(mono_even=mono_even, mono_odd=mono_odd)
         local_phase_img  = self.local_phase(mono_even=mono_even, mono_odd=mono_odd)
         phase_symmetry_img  = self.phase_symmetry(mono_even=mono_even,
@@ -405,15 +393,21 @@ class BoneProbabilityMapping:
                                                   threshold=self.phase_symmetry_threshold,
                                                   epsilon=self.phase_symmetry_epsilon)
         ibs = self.IBS(img=gaussian_img)
+        
+        # As the local energy seems a source of issue, replace it with the positive value of the even monogenic signal
+        # local_phase_img = np.clip(mono_even, 0, 1)
+        
         prob_map_img = self.prob_map(img=gaussian_img,
                                       mask=mask,
                                       laplacian=laplacian,
                                       shadow_image=shadow_image,
-                                      local_energy=local_energy_img,
+                                      local_energy=local_phase_img,
                                       local_phase=local_phase_img,
                                       phase_symmetry=phase_symmetry_img,
                                       ibs=ibs)
         
+        
+        # Normalize the images to uint8
         gaussian_img = cv2.normalize(gaussian_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         mask = cv2.normalize(mask.astype(np.uint8), None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         laplacian = cv2.normalize(laplacian, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
@@ -422,6 +416,7 @@ class BoneProbabilityMapping:
         local_phase_img = cv2.normalize(local_phase_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         phase_symmetry_img = cv2.normalize(phase_symmetry_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         ibs = cv2.normalize(ibs, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+        prob_map_img = cv2.normalize(prob_map_img, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
         
         return gaussian_img, mask, laplacian, shadow_image, local_energy_img, local_phase_img, phase_symmetry_img, ibs, prob_map_img
     

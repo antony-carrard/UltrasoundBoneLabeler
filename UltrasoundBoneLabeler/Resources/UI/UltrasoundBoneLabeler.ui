@@ -236,20 +236,23 @@
         <layout class="QGridLayout" name="gridLayout_4">
          <item row="5" column="2" colspan="2">
           <widget class="ctkSliderWidget" name="localPhaseWavelengthSlider">
+           <property name="decimals">
+            <number>0</number>
+           </property>
            <property name="singleStep">
-            <double>0.010000000000000</double>
-           </property>
-           <property name="pageStep">
-            <double>0.100000000000000</double>
-           </property>
-           <property name="minimum">
             <double>1.000000000000000</double>
            </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>10.000000000000000</double>
+           </property>
            <property name="maximum">
-            <double>6.000000000000000</double>
+            <double>1000.000000000000000</double>
            </property>
            <property name="value">
-            <double>2.000000000000000</double>
+            <double>400.000000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
             <string>localPhaseWavelength</string>
@@ -482,7 +485,7 @@
             <double>1.000000000000000</double>
            </property>
            <property name="value">
-            <double>0.400000000000000</double>
+            <double>0.300000000000000</double>
            </property>
            <property name="SlicerParameterName" stdset="0">
             <string>minimumBoneWidth</string>
