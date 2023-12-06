@@ -727,20 +727,6 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="2">
-       <widget class="QRadioButton" name="radioButton10">
-        <property name="text">
-         <string>Closed Map</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="3">
-       <widget class="QRadioButton" name="radioButton11">
-        <property name="text">
-         <string>Best Contour</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="2">
        <widget class="QRadioButton" name="radioButton7">
         <property name="text">
@@ -755,15 +741,22 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
-       <widget class="QRadioButton" name="radioButton12">
+      <item row="3" column="2">
+       <widget class="QRadioButton" name="radioButton10">
+        <property name="text">
+         <string>Best Contour</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="3">
+       <widget class="QRadioButton" name="radioButton11">
         <property name="text">
          <string>Traced Bone</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="2">
-       <widget class="QRadioButton" name="radioButton13">
+      <item row="4" column="1">
+       <widget class="QRadioButton" name="radioButton12">
         <property name="text">
          <string>Bone segmentation</string>
         </property>

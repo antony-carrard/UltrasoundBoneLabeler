@@ -13,7 +13,6 @@ from slicer.util import VTKObservationMixin
 from slicer.parameterNodeWrapper import (
     parameterNodeWrapper,
     WithinRange,
-    Minimum,
 )
 
 from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSegmentationNode, vtkMRMLVectorVolumeNode
@@ -506,12 +505,10 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         if ui.radioButton9.isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.probMap3D[:, ::-1, ::-1])
         if ui.radioButton10.isChecked():
-            slicer.util.updateVolumeFromArray(previewVolume, self.closedMap3D[:, ::-1, ::-1])
-        if ui.radioButton11.isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.contour3D[:, ::-1, ::-1])
-        if ui.radioButton12.isChecked():
+        if ui.radioButton11.isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.label3D[:, ::-1, ::-1])
-        if ui.radioButton13.isChecked():
+        if ui.radioButton12.isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.tracedLabel3D[:, ::-1, ::-1])
                 
         # Show the preview volume in slicer
