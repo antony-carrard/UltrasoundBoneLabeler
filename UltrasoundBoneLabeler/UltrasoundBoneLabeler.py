@@ -3,10 +3,6 @@ import os
 import qt
 from typing import Annotated, Optional
 
-import vtk
-import cv2
-import numpy as np
-
 import slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
@@ -16,6 +12,19 @@ from slicer.parameterNodeWrapper import (
 )
 
 from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSegmentationNode, vtkMRMLVectorVolumeNode
+
+try:
+    import vtk
+    import cv2
+    import numpy as np
+except:
+    slicer.util.pip_install("numpy")
+    slicer.util.pip_install("opencv-python")
+    slicer.util.pip_install("vtk")
+finally:
+    import vtk
+    import cv2
+    import numpy as np
 
 from Logic import bone_probability_mapping, bone_surface_identification, files_manager
 
@@ -326,10 +335,10 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             self.ui.preprocessButton.enabled = False
             
     def _volumeLoaded(self, caller=None, event=None) -> None:
-        if self._parameterNode and self._parameterNode.inputVector:
+        if self._parameterNode and self._parameterNode.inputVolume:
             
             # Get the number of images in the volume
-            array3D = slicer.util.arrayFromVolume(self._parameterNode.inputVector)
+            array3D = slicer.util.arrayFromVolume(self._parameterNode.inputVolume)
             numberOfSlices = array3D.shape[0]
             self.ui.rangeSlices.maximum = numberOfSlices
             # self.ui.rangeSlices.maximumValue = numberOfSlices
