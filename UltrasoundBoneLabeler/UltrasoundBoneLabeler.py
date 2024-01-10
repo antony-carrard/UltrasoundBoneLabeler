@@ -374,7 +374,7 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                              int(self.ui.rangeSlices.maximumValue),
                              self._parameterNode.previewVolume,
                              self._parameterNode.outputSegmentation,
-                             self.ui)
+                             self.getPreviewButtons())
             
     def onPreprocessButton(self) -> None:
         """
@@ -437,13 +437,33 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             self._parameterNode.minimumBoneWidth = MINIMUM_BONE_WIDTH
             self.onAllVolumeButton()
             
+    def getPreviewButtons(self) -> list:
+        """
+        Get all the preview button in a list for simplicity
+        """
+        return [self.ui.radioButton,
+                self.ui.radioButton1,
+                self.ui.radioButton2,
+                self.ui.radioButton3,
+                self.ui.radioButton4,
+                self.ui.radioButton5,
+                self.ui.radioButton6,
+                self.ui.radioButton7,
+                self.ui.radioButton8,
+                self.ui.radioButton9,
+                self.ui.radioButton10,
+                self.ui.radioButton11,
+                self.ui.radioButton12]
+            
     def onPreviewButton(self) -> None:
         """
         Run processing when user clicks "Preprocess" button.
         """
         with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
 
-            self.logic.showVolume(self.ui, self._parameterNode.previewVolume)
+            # Send the radio button to the function
+            previewButtons = self.getPreviewButtons()
+            self.logic.showVolume(previewButtons, self._parameterNode.previewVolume)
 
 #
 # UltrasoundBoneLabelerLogic
@@ -492,32 +512,32 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                                                          segmentId=segmentName,
                                                          referenceVolumeNode=inputVolume)
         
-    def showVolume(self, ui, previewVolume) -> None:
-        if ui.radioButton.isChecked():
+    def showVolume(self, previewButtons, previewVolume) -> None:
+        if previewButtons[0].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.array3D[:, ::-1, ::-1])
-        if ui.radioButton1.isChecked():
+        if previewButtons[1].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.gaussian3D[:, ::-1, ::-1])
-        if ui.radioButton2.isChecked():
+        if previewButtons[2].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.mask3D[:, ::-1, ::-1])
-        if ui.radioButton3.isChecked():
+        if previewButtons[3].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.LoG3D[:, ::-1, ::-1])
-        if ui.radioButton4.isChecked():
+        if previewButtons[4].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.Shadow3D[:, ::-1, ::-1])
-        if ui.radioButton5.isChecked():
+        if previewButtons[5].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.energy3D[:, ::-1, ::-1])
-        if ui.radioButton6.isChecked():
+        if previewButtons[6].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.phase3D[:, ::-1, ::-1])
-        if ui.radioButton7.isChecked():
+        if previewButtons[7].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.symmetry3D[:, ::-1, ::-1])
-        if ui.radioButton8.isChecked():
+        if previewButtons[8].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.ibs3D[:, ::-1, ::-1])
-        if ui.radioButton9.isChecked():
+        if previewButtons[9].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.probMap3D[:, ::-1, ::-1])
-        if ui.radioButton10.isChecked():
+        if previewButtons[10].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.contour3D[:, ::-1, ::-1])
-        if ui.radioButton11.isChecked():
+        if previewButtons[11].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.label3D[:, ::-1, ::-1])
-        if ui.radioButton12.isChecked():
+        if previewButtons[12].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.tracedLabel3D[:, ::-1, ::-1])
                 
         # Show the preview volume in slicer
@@ -542,7 +562,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                 endingSlice: int,
                 previewVolume: vtkMRMLScalarVolumeNode,
                 outputSegmentation: vtkMRMLSegmentationNode,
-                ui,
+                previewButtons: list,
                 segmentName: str="Bone surface") -> None:
         """
         Run the processing algorithm.
@@ -608,7 +628,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
             self.contour3D[i], self.label3D[i], self.tracedLabel3D[i] = boneSurfId.identify_bone_surface(self.probMap3D[i])
             
         # Update the volume node with the processed array
-        self.showVolume(ui, previewVolume)
+        self.showVolume(previewButtons, previewVolume)
         
         # Actualize the segmentation
         self.createSegmentation(inputVolume, outputSegmentation, self.tracedLabel3D[:, ::-1, ::-1], segmentName)
