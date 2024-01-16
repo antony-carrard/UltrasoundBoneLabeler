@@ -50,29 +50,29 @@ class FileManager:
     
     def _crop_gray_bars(self, image: np.ndarray) -> tuple[int, int]:
         """Crop the gray bars from the image.
-           As the gray border have a very low median, the image is cropped by filtering the part with a low median.
+           As the gray border have a lot of similar values, the image is cropped by filtering the part with many similar values.
            
         Keyword arguments:
         image_batch -- the image from which to remove the gray bars
         Return: the image with the gray bars removed
         """
-        # Compute the median of every column of the image
-        median = np.median(image, axis=0)
+        # Downsample the image to cluster similar pixels
+        image_downsampled = image // 16
         
-        # Remove the grid on the left side (replace the median values with the most common one)
-        values, counts = np.unique(median, return_counts=True)
-        ind = np.argmax(counts)
-        most_common = values[ind]
-        median[:5] = most_common
+        # Count the number of unique values of each columns and keep the largest one for each column
+        max_unique = []
+        for col in image_downsampled.T:
+            values, counts = np.unique(col, return_counts=True)
+            max_unique.append(np.max(counts))
         
         # Compute the gradient of the median to identify variations
-        grad = np.gradient(median)
+        grad = np.gradient(max_unique)
         
-        # When the median decrease, the image begins
-        start = np.argmin(grad) + 1
+        # When the gradient of the count decrease, the image begins
+        start = np.argmin(grad)
         
-        # When the median increase, the image ends
-        end = np.argmax(grad) + 1
+        # When the gradient of the count increase, the image ends
+        end = np.argmax(grad)
         
         return start, end
     

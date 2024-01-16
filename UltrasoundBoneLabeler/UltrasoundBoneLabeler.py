@@ -2,6 +2,7 @@ import logging
 import os
 import qt
 from typing import Annotated, Optional
+from enum import Enum
 
 import slicer
 from slicer.ScriptedLoadableModule import *
@@ -17,14 +18,17 @@ try:
     import vtk
     import cv2
     import numpy as np
+    import re
 except:
     slicer.util.pip_install("numpy")
     slicer.util.pip_install("opencv-python")
     slicer.util.pip_install("vtk")
+    slicer.util.pip_install("regex")
 finally:
     import vtk
     import cv2
     import numpy as np
+    import re
 
 from Logic import bone_probability_mapping, bone_surface_identification, files_manager
 
@@ -41,6 +45,13 @@ LOG_KERNEL_SIZE = 31
 SHADOW_NB_SIGMAS = 2
 SEGMENTATION_THICKNESS = 5
 MINIMUM_BONE_WIDTH = 0.3
+
+SEGMENT_NAME = "Bone surface"
+
+class FileExtensions(Enum):
+    JPG = ".jpg"
+    NPY = ".npy"
+    PNG = ".png"
 
 #
 # UltrasoundBoneLabeler
@@ -157,6 +168,12 @@ class UltrasoundBoneLabelerParameterNode:
     minimumBoneWidth: Annotated[float, WithinRange(0, 1)] = MINIMUM_BONE_WIDTH
     previewVolume: vtkMRMLScalarVolumeNode
     outputSegmentation: vtkMRMLSegmentationNode
+    volumeToExport: vtkMRMLScalarVolumeNode
+    fileNameImages: str
+    includeEmptyImages: bool
+    segmentationToExport: vtkMRMLSegmentationNode
+    fileNameLabels: str
+    includeEmptyLabels: bool
 
 
 #
@@ -212,6 +229,12 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.ui.allVolumeButton.connect('clicked(bool)', self.onAllVolumeButton)
         self.ui.defaultParametersButton.connect('clicked(bool)', self.onDefaultParametersButton)
         self.ui.previewButton.connect('clicked(bool)', self.onPreviewButton)
+        self.ui.exportImagesButton.connect('clicked(bool)', self.onExportImagesButton)
+        self.ui.exportLabelsButton.connect('clicked(bool)', self.onExportLabelsButton)
+        
+        # Comboboxes
+        self.ui.inputVector.connect('currentNodeChanged(bool)', self.onInputVectorModification)
+        self.ui.inputVolume.connect('currentNodeChanged(bool)', self.onInputVolumeModification)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -285,15 +308,36 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         if not self._parameterNode.previewVolume:
             volumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "Preview Volume")
             self._parameterNode.previewVolume = volumeNode
+            self._parameterNode.volumeToExport = volumeNode
         
         # If no segmentation exists, create a new one
         if not self._parameterNode.outputSegmentation:
             segmentationNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "Segmentation")
             self._parameterNode.outputSegmentation = segmentationNode
-        
-                
+            self._parameterNode.segmentationToExport = segmentationNode
+            
+        # Actualize the slider of the images selection
         if self._parameterNode.inputVolume:
-            self.onAllVolumeButton()
+            self._volumeLoaded()
+            
+        # Actualize the file names to export if empty. Take the name of the inputVector without the extension.
+        if not self._parameterNode.fileNameImages:
+            fullFilename = self._parameterNode.inputVector.GetName()
+            filename = re.search("^[^.]*", fullFilename).group()
+            if filename:
+                self._parameterNode.fileNameImages = filename
+                self._parameterNode.fileNameLabels = filename
+            
+        # Populate the comboBoxes
+        if self.ui.imagesTypeComboBox.count == 0:
+            fileTypeImages = [FileExtensions.JPG.value, FileExtensions.PNG.value]
+            self.ui.imagesTypeComboBox.addItems(fileTypeImages)
+            self.ui.imagesTypeComboBox.setCurrentIndex(1)   # .png by default
+        
+        if self.ui.labelsTypeComboBox.count == 0:
+            fileTypeLabels = [FileExtensions.NPY.value, FileExtensions.PNG.value]
+            self.ui.labelsTypeComboBox.addItems(fileTypeLabels)
+            self.ui.labelsTypeComboBox.setCurrentIndex(1)   # .png by default
 
     def setParameterNode(self, inputParameterNode: Optional[UltrasoundBoneLabelerParameterNode]) -> None:
         """
@@ -340,8 +384,9 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             # Get the number of images in the volume
             array3D = slicer.util.arrayFromVolume(self._parameterNode.inputVolume)
             numberOfSlices = array3D.shape[0]
-            self.ui.rangeSlices.maximum = numberOfSlices
-            # self.ui.rangeSlices.maximumValue = numberOfSlices
+            if self.ui.rangeSlices.maximum != numberOfSlices:
+                self.ui.rangeSlices.maximum = numberOfSlices
+                self.ui.rangeSlices.maximumValue = numberOfSlices
             
             # Activate the slices buttons
             self.ui.currentSliceButton.enabled = True
@@ -464,6 +509,43 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             # Send the radio button to the function
             previewButtons = self.getPreviewButtons()
             self.logic.showVolume(previewButtons, self._parameterNode.previewVolume)
+            
+    def onExportImagesButton(self) -> None:
+        """
+        Run processing when user clicks "Preprocess" button.
+        """
+        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+            
+            self.logic.exportImages(self._parameterNode.volumeToExport,
+                                    self._parameterNode.segmentationToExport,
+                                    self.ui.imagesDirectoryButton.directory,
+                                    self._parameterNode.fileNameImages,
+                                    self.ui.imagesTypeComboBox.currentText,
+                                    self._parameterNode.includeEmptyImages)
+            
+    def onExportLabelsButton(self) -> None:
+        """
+        Run processing when user clicks "Preprocess" button.
+        """
+        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+            
+            self.logic.exportLabels(self._parameterNode.volumeToExport,
+                                    self._parameterNode.segmentationToExport,
+                                    self.ui.labelsDirectoryButton.directory,
+                                    self._parameterNode.fileNameLabels,
+                                    self.ui.labelsTypeComboBox.currentText,
+                                    self._parameterNode.includeEmptyLabels)
+            
+    def onInputVectorModification(self) -> None:
+        # Actualize the file names to export if empty
+        if not self._parameterNode.fileNameImages:
+            self._parameterNode.fileNameImages = self._parameterNode.inputVector.GetName()
+            self._parameterNode.fileNameLabels = self._parameterNode.inputVector.GetName()
+            
+    def onInputVolumeModification(self) -> None:
+        # Actualize the slider of the images selection
+        if self._parameterNode.inputVolume:
+            self.onAllVolumeButton()
 
 #
 # UltrasoundBoneLabelerLogic
@@ -492,7 +574,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                            inputVolume: vtkMRMLScalarVolumeNode,
                            outputSegmentation: vtkMRMLSegmentationNode,
                            label3D: np.ndarray,
-                           segmentName: str="Bone surface",
+                           segmentName: str=SEGMENT_NAME,
                            segmentColor: tuple[float, float, float]=(1, 0, 0)) -> None:
         
         # First, check if the current segment exists
@@ -563,7 +645,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
                 previewVolume: vtkMRMLScalarVolumeNode,
                 outputSegmentation: vtkMRMLSegmentationNode,
                 previewButtons: list,
-                segmentName: str="Bone surface") -> None:
+                segmentName: str=SEGMENT_NAME) -> None:
         """
         Run the processing algorithm.
         Can be used without GUI widget.
@@ -606,7 +688,11 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
             self.tracedLabel3D = slicer.util.arrayFromSegmentBinaryLabelmap(outputSegmentation, segmentName, inputVolume).astype(np.uint8)[:, ::-1, ::-1]
             
             
-        # Otherwise instanciate the arrays
+        # Instanciate the arrays if they are not already existing
+        try:
+            self.gaussian3D
+        except:
+            pass
         else:
             self.gaussian3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.mask3D = np.zeros(self.array3D.shape, dtype=np.uint8)
@@ -622,7 +708,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
             self.tracedLabel3D = np.zeros(self.array3D.shape, dtype=np.uint8)
         
         # Apply the algorithm on every image
-        for i, array2D in enumerate(self.array3D[startingSlice:endingSlice+1]):
+        for i in range(len(self.array3D[startingSlice:endingSlice+1])):
             i = startingSlice+i
             self.gaussian3D[i], self.mask3D[i], self.LoG3D[i], self.Shadow3D[i], self.energy3D[i], self.phase3D[i], self.symmetry3D[i], self.ibs3D[i], self.probMap3D[i] = self.boneProbMap.apply_all_filters(self.array3D[i])
             self.contour3D[i], self.label3D[i], self.tracedLabel3D[i] = boneSurfId.identify_bone_surface(self.probMap3D[i])
@@ -670,6 +756,79 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         
         # Reset the field of view
         slicer.util.resetSliceViews()
+        
+    def exportImages(self,
+                    volumeToExport: vtkMRMLScalarVolumeNode,
+                    currentSegmentation: vtkMRMLSegmentationNode,
+                    currentPath: str,
+                    fileName: str,
+                    imagesType: str,
+                    includeEmptyImages: bool,
+                    segmentName: str=SEGMENT_NAME) -> None:
+        
+        # Get the 3D numpy array from the slicer volume
+        arrayToExport = slicer.util.arrayFromVolume(volumeToExport)[:, ::-1, ::-1]
+        
+        # Get the segmentation from slicer
+        segmentation = slicer.util.arrayFromSegmentBinaryLabelmap(currentSegmentation, segmentName, volumeToExport).astype(np.uint8)[:, ::-1, ::-1]
+            
+        # Iterate on the volume to export
+        for i in range(len(arrayToExport)):
+            
+            # If the option is set to ignore empty segmentation, skip the image to save
+            if not includeEmptyImages and not segmentation[i].any():
+                continue
+            
+            # Else, save the image with the number of the image at the end of the file
+            filenameWithNumber = f"{fileName}_{i}"
+            filenameWithExtension = filenameWithNumber + imagesType
+            fullFilename = os.path.join(currentPath, filenameWithExtension)
+            
+            # Save the image
+            cv2.imwrite(fullFilename, arrayToExport[i])
+            
+            # print out the info
+            logging.info(f'Image {filenameWithExtension} successfully saved in directory {currentPath}.')
+
+    def exportLabels(self,
+                    referenceVolume: vtkMRMLScalarVolumeNode,
+                    segmentationToExport: vtkMRMLSegmentationNode,
+                    currentPath: str,
+                    fileName: str,
+                    LabelsType: str,
+                    includeEmptyLabels: bool,
+                    segmentName: str=SEGMENT_NAME) -> None:
+        
+        # Get the segmentation from slicer
+        segmentationArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationToExport, segmentName, referenceVolume).astype(np.uint8)[:, ::-1, ::-1]
+            
+        # Iterate on the segmentation to export
+        for i in range(len(segmentationArray)):
+            
+            # If the option is set to ignore empty segmentation, skip the image to save
+            if not includeEmptyLabels and not segmentationArray[i].any():
+                continue
+            
+            # Else, save the image with the number of the image at the end of the file
+            filenameWithNumber = f"{fileName}_{i}"
+            filenameWithExtension = filenameWithNumber + LabelsType
+            fullFilename = os.path.join(currentPath, filenameWithExtension)
+            
+            # If a NumPy format is specified, save the image as a NumPy array
+            if LabelsType == FileExtensions.NPY.value:
+                np.save(fullFilename, segmentationArray[i])
+                
+            # Otherwise save the image normally
+            else:
+                # To make the masks visible in the file explorer, multiply the values by the max value of uint8 (255).
+                # This can be removed for multiple classes as it could cause overflow issues.
+                segmentationArray[i] *= np.iinfo(np.uint8).max
+                
+                # Save the image
+                cv2.imwrite(fullFilename, segmentationArray[i])
+            
+            # print out the info
+            logging.info(f'Image {filenameWithExtension} successfully saved in directory {currentPath}.')
 
 #
 # UltrasoundBoneLabelerTest
