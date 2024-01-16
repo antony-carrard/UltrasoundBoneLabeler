@@ -321,12 +321,7 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             self._volumeLoaded()
             
         # Actualize the file names to export if empty. Take the name of the inputVector without the extension.
-        if not self._parameterNode.fileNameImages:
-            fullFilename = self._parameterNode.inputVector.GetName()
-            filename = re.search("^[^.]*", fullFilename).group()
-            if filename:
-                self._parameterNode.fileNameImages = filename
-                self._parameterNode.fileNameLabels = filename
+        self.onInputVectorModification()
             
         # Populate the comboBoxes
         if self.ui.imagesTypeComboBox.count == 0:
@@ -538,9 +533,12 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             
     def onInputVectorModification(self) -> None:
         # Actualize the file names to export if empty
-        if not self._parameterNode.fileNameImages:
-            self._parameterNode.fileNameImages = self._parameterNode.inputVector.GetName()
-            self._parameterNode.fileNameLabels = self._parameterNode.inputVector.GetName()
+        if not self._parameterNode.fileNameImages and self._parameterNode.inputVector:
+            fullFilename = self._parameterNode.inputVector.GetName()
+            filename = re.search("^[^.]*", fullFilename).group()
+            if filename:
+                self._parameterNode.fileNameImages = filename
+                self._parameterNode.fileNameLabels = filename
             
     def onInputVolumeModification(self) -> None:
         # Actualize the slider of the images selection
