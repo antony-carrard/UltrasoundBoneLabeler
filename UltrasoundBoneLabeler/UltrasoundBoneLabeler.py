@@ -690,8 +690,6 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         try:
             self.gaussian3D
         except:
-            pass
-        else:
             self.gaussian3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.mask3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.LoG3D = np.zeros(self.array3D.shape, dtype=np.uint8)
