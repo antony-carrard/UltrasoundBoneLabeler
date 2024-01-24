@@ -36,10 +36,10 @@ from Logic import bone_probability_mapping, bone_surface_identification, files_m
 GAUSSIAN_KERNEL_SIZE = 25
 BINARY_THRESHOLD = 0.2
 TRANSDUCER_MARGIN = 0.1
-SHADOW_SIGMA = 100
-LOCAL_PHASE_SIGMA = 0.5
-LOCAL_PHASE_WAVELENGTH = 150
-BEST_LINE_THRESHOLD = 0.02
+SHADOW_SIGMA = 40
+LOCAL_PHASE_SIGMA = 0.3
+LOCAL_PHASE_WAVELENGTH = 200
+BEST_LINE_THRESHOLD = 0.05
 BEST_LINE_SIGMA = 5
 LOG_KERNEL_SIZE = 31
 SHADOW_NB_SIGMAS = 2
@@ -433,6 +433,8 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             # Refresh the input volume selector
             self._parameterNode.inputVolume = self._parameterNode.preprocessedVolume
             
+            self._volumeLoaded()
+            
     def onCurrentSliceButton(self) -> None:
         """
         Run processing when user clicks "Preprocess" button.
@@ -493,7 +495,8 @@ class UltrasoundBoneLabelerWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                 self.ui.radioButton9,
                 self.ui.radioButton10,
                 self.ui.radioButton11,
-                self.ui.radioButton12]
+                self.ui.radioButton12,
+                self.ui.radioButton13]
             
     def onPreviewButton(self) -> None:
         """
@@ -610,14 +613,16 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         if previewButtons[7].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.symmetry3D[:, ::-1, ::-1])
         if previewButtons[8].isChecked():
-            slicer.util.updateVolumeFromArray(previewVolume, self.ibs3D[:, ::-1, ::-1])
+            slicer.util.updateVolumeFromArray(previewVolume, self.multiPhase3D[:, ::-1, ::-1])
         if previewButtons[9].isChecked():
-            slicer.util.updateVolumeFromArray(previewVolume, self.probMap3D[:, ::-1, ::-1])
+            slicer.util.updateVolumeFromArray(previewVolume, self.ibs3D[:, ::-1, ::-1])
         if previewButtons[10].isChecked():
-            slicer.util.updateVolumeFromArray(previewVolume, self.contour3D[:, ::-1, ::-1])
+            slicer.util.updateVolumeFromArray(previewVolume, self.probMap3D[:, ::-1, ::-1])
         if previewButtons[11].isChecked():
-            slicer.util.updateVolumeFromArray(previewVolume, self.label3D[:, ::-1, ::-1])
+            slicer.util.updateVolumeFromArray(previewVolume, self.contour3D[:, ::-1, ::-1])
         if previewButtons[12].isChecked():
+            slicer.util.updateVolumeFromArray(previewVolume, self.label3D[:, ::-1, ::-1])
+        if previewButtons[13].isChecked():
             slicer.util.updateVolumeFromArray(previewVolume, self.tracedLabel3D[:, ::-1, ::-1])
                 
         # Show the preview volume in slicer
@@ -697,6 +702,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
             self.energy3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.phase3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.symmetry3D = np.zeros(self.array3D.shape, dtype=np.uint8)
+            self.multiPhase3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.ibs3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.probMap3D = np.zeros(self.array3D.shape, dtype=np.uint8)
             self.contour3D = np.zeros(self.array3D.shape, dtype=np.uint8)
@@ -706,7 +712,7 @@ class UltrasoundBoneLabelerLogic(ScriptedLoadableModuleLogic):
         # Apply the algorithm on every image
         for i in range(len(self.array3D[startingSlice:endingSlice+1])):
             i = startingSlice+i
-            self.gaussian3D[i], self.mask3D[i], self.LoG3D[i], self.Shadow3D[i], self.energy3D[i], self.phase3D[i], self.symmetry3D[i], self.ibs3D[i], self.probMap3D[i] = self.boneProbMap.apply_all_filters(self.array3D[i])
+            self.gaussian3D[i], self.mask3D[i], self.LoG3D[i], self.Shadow3D[i], self.energy3D[i], self.phase3D[i], self.symmetry3D[i], self.ibs3D[i], self.probMap3D[i], self.multiPhase3D[i] = self.boneProbMap.apply_all_filters(self.array3D[i])
             self.contour3D[i], self.label3D[i], self.tracedLabel3D[i] = boneSurfId.identify_bone_surface(self.probMap3D[i])
             
         # Update the volume node with the processed array

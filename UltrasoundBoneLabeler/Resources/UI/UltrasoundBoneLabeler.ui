@@ -672,13 +672,6 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="3">
-       <widget class="QRadioButton" name="radioButton8">
-        <property name="text">
-         <string>IBS Energy</string>
-        </property>
-       </widget>
-      </item>
       <item row="0" column="2">
        <widget class="QRadioButton" name="radioButton1">
         <property name="text">
@@ -690,16 +683,6 @@
        <widget class="QRadioButton" name="radioButton4">
         <property name="text">
          <string>Shadow Value</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QRadioButton" name="radioButton9">
-        <property name="text">
-         <string>Bone Probability Mapping</string>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
         </property>
        </widget>
       </item>
@@ -744,24 +727,48 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="2">
-       <widget class="QRadioButton" name="radioButton10">
+      <item row="4" column="2">
+       <widget class="QRadioButton" name="radioButton13">
         <property name="text">
-         <string>Best Contour</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="3">
-       <widget class="QRadioButton" name="radioButton11">
-        <property name="text">
-         <string>Traced Bone</string>
+         <string>Bone segmentation</string>
         </property>
        </widget>
       </item>
       <item row="4" column="1">
        <widget class="QRadioButton" name="radioButton12">
         <property name="text">
-         <string>Bone segmentation</string>
+         <string>Traced Bone</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="3">
+       <widget class="QRadioButton" name="radioButton11">
+        <property name="text">
+         <string>Best Contour</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QRadioButton" name="radioButton10">
+        <property name="text">
+         <string>Bone Probability Mapping</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QRadioButton" name="radioButton9">
+        <property name="text">
+         <string>IBS Energy</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <widget class="QRadioButton" name="radioButton8">
+        <property name="text">
+         <string>Multiplied Phase</string>
         </property>
        </widget>
       </item>
