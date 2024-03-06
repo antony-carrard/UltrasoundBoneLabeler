@@ -1,6 +1,5 @@
 import logging
 import os
-import qt
 from typing import Annotated, Optional
 from enum import Enum
 
